@@ -9,6 +9,7 @@ using Aggregator.Data;
 using Aggregator.Services;
 using Microsoft.Extensions.Configuration;
 using System.Net.Http;
+using System.Net;
 using System.Net.Security;
 using System.Security.Cryptography.X509Certificates;
 using Aggregator.ParserServices;
@@ -76,20 +77,25 @@ namespace Aggregator
                 options.UseNpgsql(configuration.GetConnectionString("DefaultConnection")));
             
             // Регистрируем HttpClient с нашим handler
+            var handler = new HttpClientHandler
+            {
+                ServerCertificateCustomValidationCallback = (sender, cert, chain, sslPolicyErrors) => true,
+                SslProtocols = System.Security.Authentication.SslProtocols.Tls12 | System.Security.Authentication.SslProtocols.Tls13,
+                UseProxy = false, // Отключаем прокси
+                AutomaticDecompression = DecompressionMethods.All
+            };
+
             services.AddHttpClient("SafeHttpClient")
-                .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
-                {
-                    ServerCertificateCustomValidationCallback = (sender, cert, chain, sslPolicyErrors) => true,
-                    SslProtocols = System.Security.Authentication.SslProtocols.Tls12 | System.Security.Authentication.SslProtocols.Tls13
-                });
+                .ConfigurePrimaryHttpMessageHandler(() => handler)
+                .SetHandlerLifetime(TimeSpan.FromMinutes(5)); // Увеличиваем время жизни handler
             
             services.AddScoped<AskStudioParser>();
-            services.AddScoped<SinteziaParser>();
+            services.AddScoped<ZnwrParser>();
             services.AddScoped<ParserManager>();
             services.AddScoped<IEnumerable<IParser>>(sp => new List<IParser>
             {
                 sp.GetRequiredService<AskStudioParser>(),
-                sp.GetRequiredService<SinteziaParser>()
+                sp.GetRequiredService<ZnwrParser>()
             });
 
             return services;
