@@ -3,85 +3,96 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.IO;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.EntityFrameworkCore;
+using Aggregator.Data;
+using Aggregator.Services;
+using Microsoft.Extensions.Configuration;
+using System.Net.Http;
+using System.Net.Security;
+using System.Security.Cryptography.X509Certificates;
+using Aggregator.ParserServices;
+using Aggregator.Interfaces;
 
-namespace ClothingStoreScraper
+namespace Aggregator
 {
     class Program
     {
-        static void Main(string[] args)
+        static async Task Main(string[] args)
         {
-            // Замените URL на реальный адрес магазина одежды
-            var url = "https://sintezia.com/clothing_en";
-            var products = ParseClothingProducts(url);
-
-            // Путь к файлу для сохранения результатов
-            string filePath = "parsing_results.txt";
-
-            // Записываем результаты в файл
-            using (StreamWriter writer = new StreamWriter(filePath))
+            var services = ConfigureServices();
+            
+            // Создаем scope для работы с сервисами
+            using var serviceProvider = services.BuildServiceProvider();
+            using var scope = serviceProvider.CreateScope();
+            
+            try 
             {
-                writer.WriteLine($"Результаты парсинга {DateTime.Now}\n");
-                writer.WriteLine($"URL: {url}\n");
-                writer.WriteLine("Найденные товары:\n");
+                var parserManager = scope.ServiceProvider.GetRequiredService<ParserManager>();
+                Console.WriteLine("Начинаем парсинг...");
+                await parserManager.ParseAllSites();
 
-                foreach (var product in products)
+                var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                var allProducts = await dbContext.Products
+                    .OrderByDescending(p => p.ParseDate)
+                    .ToListAsync();
+
+                Console.WriteLine("\nВсе товары в базе данных:");
+                Console.WriteLine("==========================");
+                if (!allProducts.Any())
                 {
-                    writer.WriteLine($"Название: {product.Name}");
-                    writer.WriteLine($"Цена: {product.Price}");
-                    writer.WriteLine("------------------------");
+                    Console.WriteLine("База данных пуста. Товары не найдены.");
                 }
-            }
-
-            Console.WriteLine($"Результаты сохранены в файл: {Path.GetFullPath(filePath)}");
-        }
-
-        static List<ClothingProduct> ParseClothingProducts(string url)
-        {
-            var products = new List<ClothingProduct>();
-            var web = new HtmlWeb();
-            var doc = GetDocument(url);
-
-            // 1) контейнер всех карточек — здесь ul с классом catalog_grid, внутри li
-            var productNodes = doc.DocumentNode
-                .SelectNodes("//div[contains(@class,'product-layout')]");
-
-            if (productNodes != null)
-            {
-                foreach (var node in productNodes)
+                else
                 {
-                    var product = new ClothingProduct
+                    foreach (var product in allProducts)
                     {
-                        // 2) название — внутри <a class="catalog_item__name">
-                        Name = node
-                            .SelectSingleNode(".//div[contains(@class,'name')]")
-                            ?.InnerText.Trim(),
-
-                        // 3) цена — внутри <div class="catalog_item__price">
-                        Price = node
-                            .SelectSingleNode(".//div[contains(@class,'price')]")
-                            ?.InnerText.Trim()
-                    };
-
-                    if (!string.IsNullOrEmpty(product.Name))
-                    {
-                        products.Add(product);
+                        Console.WriteLine($"{product.Shop} - {product.Name}: {product.Price} (спаршено: {product.ParseDate})");
                     }
                 }
             }
-
-            return products;
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Произошла ошибка: {ex.Message}");
+                if (ex.InnerException != null)
+                {
+                    Console.WriteLine($"Внутренняя ошибка: {ex.InnerException.Message}");
+                    Console.WriteLine($"Стек вызовов: {ex.InnerException.StackTrace}");
+                }
+            }
         }
 
-        static HtmlDocument GetDocument(string url)
+        private static IServiceCollection ConfigureServices()
         {
-            var web = new HtmlWeb();
-            return web.Load(url);
-        }
-    }
+            var configuration = new ConfigurationBuilder()
+                .SetBasePath(Directory.GetCurrentDirectory())
+                .AddJsonFile("appsettings.json")
+                .Build();
 
-    class ClothingProduct
-    {
-        public string Name { get; set; }
-        public string Price { get; set; }
+            var services = new ServiceCollection();
+
+            // Регистрация сервисов
+            services.AddDbContext<ApplicationDbContext>(options =>
+                options.UseNpgsql(configuration.GetConnectionString("DefaultConnection")));
+            
+            // Регистрируем HttpClient с нашим handler
+            services.AddHttpClient("SafeHttpClient")
+                .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+                {
+                    ServerCertificateCustomValidationCallback = (sender, cert, chain, sslPolicyErrors) => true,
+                    SslProtocols = System.Security.Authentication.SslProtocols.Tls12 | System.Security.Authentication.SslProtocols.Tls13
+                });
+            
+            services.AddScoped<AskStudioParser>();
+            services.AddScoped<SinteziaParser>();
+            services.AddScoped<ParserManager>();
+            services.AddScoped<IEnumerable<IParser>>(sp => new List<IParser>
+            {
+                sp.GetRequiredService<AskStudioParser>(),
+                sp.GetRequiredService<SinteziaParser>()
+            });
+
+            return services;
+        }
     }
 }
