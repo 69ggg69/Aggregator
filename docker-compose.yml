@@ -28,8 +28,7 @@ services:
         condition: service_healthy
     networks:
       - aggregator-network
-    profiles:
-      - migrations
+    command: ["Host=postgres;Port=5432;Database=aggregator;Username=postgres;Password=postgres;"]
 
   aggregator:
     build: .
@@ -37,6 +36,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
     networks:
       - aggregator-network
     volumes:

@@ -16,11 +16,35 @@ COPY . ./
 # Set environment to use Docker configuration
 ENV ASPNETCORE_ENVIRONMENT=Docker
 
-# Create a script to run migrations
+# Create a simple and reliable migration script
 RUN echo '#!/bin/bash\n\
-echo "Running database migrations..."\n\
-dotnet ef database update --connection "Host=postgres;Port=5432;Database=aggregator;Username=postgres;Password=postgres;" --verbose\n\
-echo "Migrations completed!"' > /app/run-migrations.sh && chmod +x /app/run-migrations.sh
+set -e\n\
+echo "🔄 Starting database migration process..."\n\
+echo "Connection: $1"\n\
+\n\
+# Validate connection string\n\
+if [ -z "$1" ]; then\n\
+  echo "❌ No connection string provided!"\n\
+  exit 1\n\
+fi\n\
+\n\
+# Wait for database to be ready\n\
+echo "⏳ Waiting for database to be fully ready..."\n\
+sleep 5\n\
+\n\
+# Build the project (restore was already done in Docker build)\n\
+echo "🔨 Building project..."\n\
+dotnet build\n\
+\n\
+# List what EF finds (for debugging)\n\
+echo "🔍 Checking what EF tools find..."\n\
+dotnet ef dbcontext list --verbose || echo "Context listing failed"\n\
+\n\
+# Run migrations with explicit connection string\n\
+echo "🔄 Running migrations..."\n\
+dotnet ef database update --connection "$1" --verbose\n\
+\n\
+echo "✅ Migrations completed successfully!"' > /app/migrate.sh && chmod +x /app/migrate.sh
 
-# Default command for migrations
-CMD ["/app/run-migrations.sh"] 
+# Default entrypoint that accepts connection string as argument
+ENTRYPOINT ["/app/migrate.sh"] 

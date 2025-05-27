@@ -18,13 +18,13 @@ fi
 echo "🧹 Cleaning up existing containers..."
 docker-compose down
 
-echo "📦 Building and starting PostgreSQL..."
-docker-compose up --build -d postgres
+echo "📦 Building and starting services..."
+echo "   1️⃣  PostgreSQL will start first"
+echo "   2️⃣  Migrations will run as init container"
+echo "   3️⃣  Application will start after migrations complete"
+echo ""
 
-echo "⏳ Waiting for PostgreSQL to be ready..."
-sleep 20
+# Start all services - Docker Compose will handle the dependency order
+docker-compose up --build
 
-echo "🚀 Starting the aggregator application (with automatic database creation)..."
-docker-compose up --build aggregator
-
-echo "✅ Done! Check the logs above for parsing results." 
+echo "✅ Done! Check the logs above for results." 

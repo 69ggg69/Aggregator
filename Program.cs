@@ -30,8 +30,7 @@ namespace Aggregator
             {
                 // Ensure database is created
                 var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-                await dbContext.Database.EnsureCreatedAsync();
-                Console.WriteLine("База данных готова!");
+                Console.WriteLine("База данных готова! (настроена через миграции)");
 
                 var parserManager = scope.ServiceProvider.GetRequiredService<ParserManager>();
                 Console.WriteLine("Начинаем парсинг...");
