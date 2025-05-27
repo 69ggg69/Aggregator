@@ -23,7 +23,6 @@ namespace Aggregator
         {
             var services = ConfigureServices();
             
-            // Создаем scope для работы с сервисами
             using var serviceProvider = services.BuildServiceProvider();
             using var scope = serviceProvider.CreateScope();
             
@@ -72,22 +71,20 @@ namespace Aggregator
 
             var services = new ServiceCollection();
 
-            // Регистрация сервисов
             services.AddDbContext<ApplicationDbContext>(options =>
                 options.UseNpgsql(configuration.GetConnectionString("DefaultConnection")));
             
-            // Регистрируем HttpClient с нашим handler
             var handler = new HttpClientHandler
             {
                 ServerCertificateCustomValidationCallback = (sender, cert, chain, sslPolicyErrors) => true,
                 SslProtocols = System.Security.Authentication.SslProtocols.Tls12 | System.Security.Authentication.SslProtocols.Tls13,
-                UseProxy = false, // Отключаем прокси
+                UseProxy = false, 
                 AutomaticDecompression = DecompressionMethods.All
             };
 
             services.AddHttpClient("SafeHttpClient")
                 .ConfigurePrimaryHttpMessageHandler(() => handler)
-                .SetHandlerLifetime(TimeSpan.FromMinutes(5)); // Увеличиваем время жизни handler
+                .SetHandlerLifetime(TimeSpan.FromMinutes(5)); 
             
             services.AddScoped<AskStudioParser>();
             services.AddScoped<ZnwrParser>();

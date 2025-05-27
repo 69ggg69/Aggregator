@@ -31,7 +31,6 @@ namespace Aggregator.Services
                 {
                     await parser.ParseAsync();
                     
-                    // Выводим результаты парсинга
                     var todayProducts = await _context.Products
                         .Where(p => p.Shop == parser.ShopName && 
                                p.ParseDate.Date == DateTime.UtcNow.Date)

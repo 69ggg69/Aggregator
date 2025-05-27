@@ -2,9 +2,11 @@ using Aggregator.Data;
 using Aggregator.Interfaces;
 using Aggregator.Models;
 using HtmlAgilityPack;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
 
@@ -42,6 +44,8 @@ namespace Aggregator.ParserServices
                 var doc = await web.LoadFromWebAsync(BaseUrl);
                 var productNodes = doc.DocumentNode.SelectNodes(ProductSelector);
 
+                var uniqueProducts = new HashSet<string>();
+
                 if (productNodes != null)
                 {
                     foreach (var node in productNodes)
@@ -51,7 +55,6 @@ namespace Aggregator.ParserServices
 
                         if (!string.IsNullOrEmpty(name))
                         {
-                            // Очищаем цену от HTML-сущностей и лишних символов
                             price = price?
                                 .Replace("&nbsp;", " ")
                                 .Replace("РУБ", "")
@@ -59,16 +62,28 @@ namespace Aggregator.ParserServices
                                 .Replace("₽", "")
                                 .Trim();
 
-                            products.Add(new Product
+                            var productKey = $"{name}_{price}";
+
+                            if (!uniqueProducts.Contains(productKey))
                             {
-                                Name = name,
-                                Price = price ?? string.Empty,
-                                Shop = ShopName,
-                                ParseDate = DateTime.UtcNow
-                            });
+                                uniqueProducts.Add(productKey);
+                                products.Add(new Product
+                                {
+                                    Name = name,
+                                    Price = price ?? string.Empty,
+                                    Shop = ShopName,
+                                    ParseDate = DateTime.UtcNow
+                                });
+                            }
+                            else
+                            {
+                                _logger.LogInformation($"Пропущен дубликат товара: {name} - {price}");
+                            }
                         }
                     }
                 }
+
+                _logger.LogInformation($"Найдено {products.Count} уникальных товаров из {productNodes?.Count ?? 0} элементов");
             }
             catch (Exception ex)
             {
@@ -89,8 +104,27 @@ namespace Aggregator.ParserServices
             {
                 var client = _clientFactory.CreateClient("SafeHttpClient");
                 var products = await ParseProducts();
-                await _context.Products.AddRangeAsync(products);
-                await _context.SaveChangesAsync();
+                
+                var existingProducts = await _context.Products
+                    .Where(p => p.Shop == ShopName && p.ParseDate.Date == DateTime.UtcNow.Date)
+                    .ToListAsync();
+                
+                var newProducts = products
+                    .Where(p => !existingProducts.Any(ep => 
+                        ep.Name == p.Name && 
+                        ep.Price == p.Price))
+                    .ToList();
+
+                if (newProducts.Any())
+                {
+                    await _context.Products.AddRangeAsync(newProducts);
+                    await _context.SaveChangesAsync();
+                    _logger.LogInformation($"Добавлено {newProducts.Count} новых товаров");
+                }
+                else
+                {
+                    _logger.LogInformation("Новых товаров не обнаружено");
+                }
             }
             catch (Exception ex)
             {
