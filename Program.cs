@@ -28,11 +28,15 @@ namespace Aggregator
             
             try 
             {
+                // Ensure database is created
+                var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                await dbContext.Database.EnsureCreatedAsync();
+                Console.WriteLine("База данных готова!");
+
                 var parserManager = scope.ServiceProvider.GetRequiredService<ParserManager>();
                 Console.WriteLine("Начинаем парсинг...");
                 await parserManager.ParseAllSites();
 
-                var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
                 var allProducts = await dbContext.Products
                     .OrderByDescending(p => p.ParseDate)
                     .ToListAsync();
@@ -64,9 +68,13 @@ namespace Aggregator
 
         private static IServiceCollection ConfigureServices()
         {
+            var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Production";
+            
             var configuration = new ConfigurationBuilder()
                 .SetBasePath(Directory.GetCurrentDirectory())
-                .AddJsonFile("appsettings.json")
+                .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+                .AddJsonFile($"appsettings.{environment}.json", optional: true, reloadOnChange: true)
+                .AddEnvironmentVariables()
                 .Build();
 
             var services = new ServiceCollection();

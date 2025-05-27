@@ -1,4 +1,3 @@
-version: '3.8'
 services:
   postgres:
     container_name: my_postgres
@@ -13,6 +12,36 @@ services:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - aggregator-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  migrations:
+    build:
+      context: .
+      dockerfile: Dockerfile.migrations
+    container_name: aggregator_migrations
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - aggregator-network
+    profiles:
+      - migrations
+
+  aggregator:
+    build: .
+    container_name: aggregator_app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - aggregator-network
+    volumes:
+      - ./parsing_results.txt:/app/parsing_results.txt
+    restart: "no"
 
 networks:
   aggregator-network:
