@@ -60,3 +60,4 @@ C:\Users\Ekaterina\Desktop\Aggregator\bin\Debug\net8.0\Microsoft.Extensions.Opti
 C:\Users\Ekaterina\Desktop\Aggregator\bin\Debug\net8.0\Microsoft.Extensions.Options.ConfigurationExtensions.dll
 C:\Users\Ekaterina\Desktop\Aggregator\bin\Debug\net8.0\Microsoft.Extensions.Primitives.dll
 C:\Users\Ekaterina\Desktop\Aggregator\bin\Debug\net8.0\System.Diagnostics.DiagnosticSource.dll
+C:\Users\Ekaterina\Desktop\Aggregator\obj\Debug\net8.0\Aggregator.sourcelink.json

@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using System.Net.Http;
 using Aggregator.Data;
+using Aggregator.Services;
 
 namespace Aggregator.ParserServices
 {
@@ -9,8 +10,9 @@ namespace Aggregator.ParserServices
         public ZnwrParser(
             ApplicationDbContext context,
             IHttpClientFactory clientFactory,
-            ILogger<ZnwrParser> logger)
-            : base(context, clientFactory, logger)
+            ILogger<ZnwrParser> logger,
+            ImageService imageService)
+            : base(context, clientFactory, logger, imageService)
         {
         }
 
@@ -19,5 +21,6 @@ namespace Aggregator.ParserServices
         protected override string ProductSelector => "//div[contains(@class,'card')]";
         protected override string NameSelector => ".//div[contains(@class,'card__product-name')]";
         protected override string PriceSelector => ".//span[contains(@class,'card__price-final')]";
+        protected override string ImageSelector => ".//img[contains(@class,'swiper-lazy')]";
     }
 }

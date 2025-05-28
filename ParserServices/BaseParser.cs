@@ -1,6 +1,7 @@
 using Aggregator.Data;
 using Aggregator.Interfaces;
 using Aggregator.Models;
+using Aggregator.Services;
 using HtmlAgilityPack;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -17,15 +18,18 @@ namespace Aggregator.ParserServices
         protected readonly ApplicationDbContext _context;
         protected readonly IHttpClientFactory _clientFactory;
         protected readonly ILogger _logger;
+        protected readonly ImageService _imageService;
 
         protected BaseParser(
             ApplicationDbContext context,
             IHttpClientFactory clientFactory,
-            ILogger logger)
+            ILogger logger,
+            ImageService imageService)
         {
             _context = context;
             _clientFactory = clientFactory;
             _logger = logger;
+            _imageService = imageService;
         }
 
         public abstract string ShopName { get; }
@@ -33,6 +37,48 @@ namespace Aggregator.ParserServices
         protected abstract string ProductSelector { get; }
         protected abstract string NameSelector { get; }
         protected abstract string PriceSelector { get; }
+        protected abstract string ImageSelector { get; }
+
+        protected virtual string ExtractImageUrl(HtmlNode node)
+        {
+            var imageNode = node.SelectSingleNode(ImageSelector);
+            if (imageNode == null) return string.Empty;
+
+            // Для тега img с атрибутом src
+            var src = imageNode.GetAttributeValue("src", "");
+            if (!string.IsNullOrEmpty(src))
+            {
+                return NormalizeImageUrl(src);
+            }
+
+            // Для элементов с background-image в style
+            var style = imageNode.GetAttributeValue("style", "");
+            if (!string.IsNullOrEmpty(style))
+            {
+                var urlMatch = System.Text.RegularExpressions.Regex.Match(style, @"url\(([^)]+)\)");
+                if (urlMatch.Success)
+                {
+                    var url = urlMatch.Groups[1].Value.Trim('"', '\'');
+                    return NormalizeImageUrl(url);
+                }
+            }
+
+            return string.Empty;
+        }
+
+        protected virtual string NormalizeImageUrl(string url)
+        {
+            if (string.IsNullOrEmpty(url)) return string.Empty;
+
+            // Если URL относительный, добавляем базовый домен
+            if (url.StartsWith("/"))
+            {
+                var baseUri = new Uri(BaseUrl);
+                return $"{baseUri.Scheme}://{baseUri.Host}{url}";
+            }
+
+            return url;
+        }
 
         public async Task<List<Product>> ParseProducts()
         {
@@ -52,6 +98,7 @@ namespace Aggregator.ParserServices
                     {
                         var name = node.SelectSingleNode(NameSelector)?.InnerText.Trim();
                         var price = node.SelectSingleNode(PriceSelector)?.InnerText.Trim();
+                        var imageUrl = ExtractImageUrl(node);
 
                         if (!string.IsNullOrEmpty(name))
                         {
@@ -67,12 +114,22 @@ namespace Aggregator.ParserServices
                             if (!uniqueProducts.Contains(productKey))
                             {
                                 uniqueProducts.Add(productKey);
+                                
+                                // Загружаем и сохраняем изображение
+                                string? localImagePath = null;
+                                if (!string.IsNullOrEmpty(imageUrl))
+                                {
+                                    localImagePath = await _imageService.DownloadAndSaveImageAsync(imageUrl, ShopName);
+                                }
+
                                 products.Add(new Product
                                 {
                                     Name = name,
                                     Price = price ?? string.Empty,
                                     Shop = ShopName,
-                                    ParseDate = DateTime.UtcNow
+                                    ParseDate = DateTime.UtcNow,
+                                    ImageUrl = imageUrl,
+                                    LocalImagePath = localImagePath
                                 });
                             }
                             else
