@@ -9,6 +9,7 @@ using Aggregator.Data;
 using Aggregator.Services;
 using Aggregator.ParserServices;
 using Aggregator.Interfaces;
+using Aggregator.Extensions;
 
 namespace Aggregator
 {
@@ -185,34 +186,8 @@ namespace Aggregator
                 })
                 .ConfigureServices((context, services) =>
                 {
-                    // Database
-                    services.AddDbContext<ApplicationDbContext>(options =>
-                        options.UseNpgsql(context.Configuration.GetConnectionString("DefaultConnection")));
-                    
-                    // HTTP Client
-                    var handler = new HttpClientHandler
-                    {
-                        ServerCertificateCustomValidationCallback = (sender, cert, chain, sslPolicyErrors) => true,
-                        SslProtocols = System.Security.Authentication.SslProtocols.Tls12 | System.Security.Authentication.SslProtocols.Tls13,
-                        UseProxy = false, 
-                        AutomaticDecompression = DecompressionMethods.All
-                    };
-
-                    services.AddHttpClient("SafeHttpClient")
-                        .ConfigurePrimaryHttpMessageHandler(() => handler)
-                        .SetHandlerLifetime(TimeSpan.FromMinutes(5));
-                    
-                    // Application Services
-                    services.AddScoped<ParsingApplicationService>();
-                    services.AddScoped<ImageService>();
-                    services.AddScoped<AskStudioParser>();
-                    services.AddScoped<ZnwrParser>();
-                    services.AddScoped<ParserManager>();
-                    services.AddScoped<IEnumerable<IParser>>(sp => new List<IParser>
-                    {
-                        sp.GetRequiredService<AskStudioParser>(),
-                        sp.GetRequiredService<ZnwrParser>()
-                    });
+                    // Используем extension метод для настройки всех сервисов
+                    services.AddAggregatorServices(context.Configuration);
                 })
                 .ConfigureLogging((context, logging) =>
                 {
