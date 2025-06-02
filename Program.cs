@@ -19,25 +19,39 @@ namespace Aggregator
         static async Task Main(string[] args)
         {
             var host = CreateHostBuilder(args).Build();
+            var logger = host.Services.GetRequiredService<ILogger<Program>>();
             
             try
             {
-                var logger = host.Services.GetRequiredService<ILogger<Program>>();
-                logger.LogInformation("Приложение Aggregator успешно инициализировано");
+                logger.LogInformation("🚀 Запуск приложения Aggregator v1.0");
+                logger.LogInformation("Среда выполнения: {Environment}", 
+                    Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Production");
+                logger.LogInformation("Время запуска: {StartTime}", DateTime.Now);
+                
+                Console.WriteLine("✅ Приложение Aggregator успешно инициализировано");
                 
                 // Показываем простое меню (временно, пока не добавим API)
                 await ShowMainMenuAsync(host, logger);
+                
+                logger.LogInformation("👋 Завершение работы приложения");
+                logger.LogInformation("Время остановки: {StopTime}", DateTime.Now);
             }
             catch (Exception ex)
             {
-                var logger = host.Services.GetRequiredService<ILogger<Program>>();
-                logger.LogError(ex, "Произошла критическая ошибка при запуске приложения");
+                logger.LogCritical(ex, "💥 Критическая ошибка при запуске приложения");
+                Console.WriteLine($"Критическая ошибка: {ex.Message}");
                 throw;
+            }
+            finally
+            {
+                logger.LogInformation("🏁 Приложение полностью завершено");
             }
         }
 
         static async Task ShowMainMenuAsync(IHost host, ILogger logger)
         {
+            logger.LogInformation("📋 Отображение главного меню");
+            
             while (true)
             {
                 Console.WriteLine("\n=== Aggregator - Product Parser ===");
@@ -48,22 +62,27 @@ namespace Aggregator
                 Console.Write("Выберите действие: ");
 
                 var choice = Console.ReadLine();
+                logger.LogDebug("Пользователь выбрал действие: {UserChoice}", choice ?? "null");
 
                 switch (choice)
                 {
                     case "1":
+                        logger.LogInformation("⚡ Пользователь запустил парсинг");
                         await RunParsingAsync(host, logger);
                         break;
                     case "2":
+                        logger.LogInformation("🔍 Пользователь запустил проверку БД");
                         await CheckDatabaseConnectionAsync(host, logger);
                         break;
                     case "3":
+                        logger.LogInformation("📊 Пользователь запросил статистику");
                         await ShowStatisticsAsync(host, logger);
                         break;
                     case "0":
-                        logger.LogInformation("Завершение работы приложения");
+                        logger.LogInformation("🚪 Пользователь выбрал выход из программы");
                         return;
                     default:
+                        logger.LogWarning("❓ Пользователь ввел неверный выбор: {InvalidChoice}", choice ?? "null");
                         Console.WriteLine("Неверный выбор. Попробуйте снова.");
                         break;
                 }
@@ -72,22 +91,29 @@ namespace Aggregator
 
         static async Task RunParsingAsync(IHost host, ILogger logger)
         {
+            var startTime = DateTime.Now;
+            logger.LogInformation("🔄 Начало выполнения парсинга в {StartTime}", startTime);
+            
             try
             {
-                logger.LogInformation("Запуск парсинга по запросу пользователя");
                 var parsingService = host.Services.GetRequiredService<ParsingApplicationService>();
                 await parsingService.RunParsingAsync();
-                logger.LogInformation("Парсинг успешно завершен");
+                
+                var duration = DateTime.Now - startTime;
+                logger.LogInformation("✅ Парсинг успешно завершен за {Duration}ms", duration.TotalMilliseconds);
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Ошибка при выполнении парсинга");
+                var duration = DateTime.Now - startTime;
+                logger.LogError(ex, "❌ Ошибка при выполнении парсинга после {Duration}ms", duration.TotalMilliseconds);
                 Console.WriteLine($"Ошибка: {ex.Message}");
             }
         }
 
         static async Task CheckDatabaseConnectionAsync(IHost host, ILogger logger)
         {
+            logger.LogInformation("🔍 Начало проверки подключения к базе данных");
+            
             try
             {
                 using var scope = host.Services.CreateScope();
@@ -108,11 +134,13 @@ namespace Aggregator
                 Console.WriteLine($"   Время отклика: {responseTime:F2} мс");
                 Console.WriteLine($"   Количество товаров в БД: {productsCount}");
                 
-                logger.LogInformation("Проверка подключения к БД - успешно. Время отклика: {ResponseTime}ms, товаров: {ProductsCount}", 
+                logger.LogInformation("✅ Подключение к БД успешно. Время отклика: {ResponseTime}ms, товаров: {ProductsCount}", 
                     responseTime, productsCount);
             }
             catch (Npgsql.NpgsqlException pgEx)
             {
+                logger.LogError(pgEx, "❌ Ошибка PostgreSQL при проверке подключения");
+                
                 Console.WriteLine($"❌ Ошибка PostgreSQL: {pgEx.Message}");
                 if (pgEx.Message.Contains("No connection could be made") || 
                     pgEx.Message.Contains("Connection refused") ||
@@ -121,22 +149,25 @@ namespace Aggregator
                     Console.WriteLine("   💡 Возможно, Docker контейнер с PostgreSQL не запущен");
                     Console.WriteLine("   Запустите: docker-compose up -d postgres");
                 }
-                logger.LogError(pgEx, "Ошибка подключения к PostgreSQL");
             }
             catch (System.Net.Sockets.SocketException sockEx)
             {
+                logger.LogError(sockEx, "❌ Ошибка сетевого подключения при проверке БД");
+                
                 Console.WriteLine($"❌ Ошибка сетевого подключения: {sockEx.Message}");
                 Console.WriteLine("   💡 Проверьте, что Docker запущен и порт 5432 доступен");
-                logger.LogError(sockEx, "Ошибка сетевого подключения к базе данных");
             }
             catch (TimeoutException timeEx)
             {
+                logger.LogError(timeEx, "⏰ Таймаут при подключении к БД");
+                
                 Console.WriteLine($"❌ Таймаут подключения: {timeEx.Message}");
                 Console.WriteLine("   💡 База данных может быть недоступна или перегружена");
-                logger.LogError(timeEx, "Таймаут подключения к базе данных");
             }
             catch (Exception ex)
             {
+                logger.LogError(ex, "❌ Общая ошибка при проверке подключения к БД");
+                
                 Console.WriteLine($"❌ Общая ошибка подключения к БД: {ex.Message}");
                 Console.WriteLine($"   Тип ошибки: {ex.GetType().Name}");
                 
@@ -145,13 +176,13 @@ namespace Aggregator
                 {
                     Console.WriteLine($"   Внутренняя ошибка: {ex.InnerException.Message}");
                 }
-                
-                logger.LogError(ex, "Общая ошибка подключения к базе данных");
             }
         }
 
         static async Task ShowStatisticsAsync(IHost host, ILogger logger)
         {
+            logger.LogInformation("📊 Получение статистики из базы данных");
+            
             try
             {
                 var parsingService = host.Services.GetRequiredService<ParsingApplicationService>();
@@ -170,13 +201,13 @@ namespace Aggregator
                     }
                 }
                 
-                logger.LogInformation("Показана статистика: товаров {TotalProducts}, последний парсинг {LastParseDate}", 
-                    statistics.TotalProducts, statistics.LastParseDate);
+                logger.LogInformation("📊 Статистика отображена: товаров {TotalProducts}, магазинов {ShopsCount}, последний парсинг {LastParseDate}", 
+                    statistics.TotalProducts, statistics.ShopStatistics.Count, statistics.LastParseDate);
             }
             catch (Exception ex)
             {
+                logger.LogError(ex, "❌ Ошибка при получении статистики");
                 Console.WriteLine($"❌ Ошибка получения статистики: {ex.Message}");
-                logger.LogError(ex, "Ошибка получения статистики");
             }
         }
 
@@ -197,8 +228,22 @@ namespace Aggregator
                 {
                     logging.ClearProviders();
                     logging.AddConsole();
-                    logging.AddDebug();
+                    
+                    // Добавляем цветной вывод в консоль (если поддерживается)
+                    logging.AddConsole(options =>
+                    {
+                        options.IncludeScopes = true;
+                        options.TimestampFormat = "[yyyy-MM-dd HH:mm:ss] ";
+                    });
+                    
+                    // Устанавливаем уровень логирования
                     logging.SetMinimumLevel(LogLevel.Information);
+                    
+                    // Для отладки можно включить Debug уровень
+                    if (context.HostingEnvironment.IsDevelopment())
+                    {
+                        logging.SetMinimumLevel(LogLevel.Debug);
+                    }
                 });
     }
 }
