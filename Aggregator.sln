@@ -1,8 +1,12 @@
-Microsoft Visual Studio Solution File, Format Version 12.00
+﻿Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.5.2.0
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Aggregator", "Aggregator.csproj", "{4B8729F2-2D48-983D-28AC-47079F500849}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Aggregator", "src\Aggregator\Aggregator.csproj", "{4B8729F2-2D48-983D-28AC-47079F500849}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{3F8A4A66-6172-40A6-9615-EA7343420854}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Aggregator.Tests", "tests\Aggregator.Tests\Aggregator.Tests.csproj", "{1851DAF4-A62A-49ED-B0B7-5F94F16A6095}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -14,11 +18,18 @@ Global
 		{4B8729F2-2D48-983D-28AC-47079F500849}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4B8729F2-2D48-983D-28AC-47079F500849}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4B8729F2-2D48-983D-28AC-47079F500849}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1851DAF4-A62A-49ED-B0B7-5F94F16A6095}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1851DAF4-A62A-49ED-B0B7-5F94F16A6095}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1851DAF4-A62A-49ED-B0B7-5F94F16A6095}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1851DAF4-A62A-49ED-B0B7-5F94F16A6095}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {E93A4388-AA55-47A9-8D7A-6844FF97E18A}
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{1851DAF4-A62A-49ED-B0B7-5F94F16A6095} = {3F8A4A66-6172-40A6-9615-EA7343420854}
 	EndGlobalSection
 EndGlobal

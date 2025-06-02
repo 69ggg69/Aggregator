@@ -531,4 +531,20 @@ tmp/
 .Spotlight-V100
 .Trashes
 ehthumbs.db
-Thumbs.db 
+Thumbs.db
+
+# Test Data and Downloads
+tests/**/TestData/Downloads/
+tests/**/TestData/HtmlPages/askstudio/
+*.html.downloaded
+temp_test_files/
+
+# Test Results
+TestResults/
+*.trx
+*.coverage
+*.coveragexml
+
+# Temporary parsing results
+parsing_results.txt
+*.parsed.json 
