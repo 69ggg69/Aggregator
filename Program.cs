@@ -47,7 +47,10 @@ namespace Aggregator
                 {
                     foreach (var product in allProducts)
                     {
-                        Console.WriteLine($"{product.Shop} - {product.Name}: {product.Price} (спаршено: {product.ParseDate})");
+                        var imageInfo = !string.IsNullOrEmpty(product.LocalImagePath) 
+                            ? $" [Изображение сохранено: {product.LocalImagePath}]" 
+                            : " [Без изображения]";
+                        Console.WriteLine($"{product.Shop} - {product.Name}: {product.Price}{imageInfo} (спаршено: {product.ParseDate})");
                     }
                 }
             }
@@ -86,6 +89,7 @@ namespace Aggregator
                 .ConfigurePrimaryHttpMessageHandler(() => handler)
                 .SetHandlerLifetime(TimeSpan.FromMinutes(5)); 
             
+            services.AddScoped<ImageService>();
             services.AddScoped<AskStudioParser>();
             services.AddScoped<ZnwrParser>();
             services.AddScoped<ParserManager>();

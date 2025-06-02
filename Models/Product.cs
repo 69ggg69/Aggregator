@@ -7,5 +7,7 @@ namespace Aggregator.Models
         public required string Price { get; set; }
         public required string Shop { get; set; }
         public DateTime ParseDate { get; set; }
+        public string? ImageUrl { get; set; }
+        public string? LocalImagePath { get; set; }
     }
 }
