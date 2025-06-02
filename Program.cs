@@ -10,6 +10,7 @@ using Aggregator.Services;
 using Aggregator.ParserServices;
 using Aggregator.Interfaces;
 using Aggregator.Extensions;
+using Aggregator.Services.Application;
 
 namespace Aggregator
 {
@@ -153,21 +154,24 @@ namespace Aggregator
         {
             try
             {
-                using var scope = host.Services.CreateScope();
-                var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-                
-                var totalProducts = await dbContext.Products.CountAsync();
-                var lastParseDate = await dbContext.Products
-                    .OrderByDescending(p => p.ParseDate)
-                    .Select(p => (DateTime?)p.ParseDate)
-                    .FirstOrDefaultAsync();
+                var parsingService = host.Services.GetRequiredService<ParsingApplicationService>();
+                var statistics = await parsingService.GetStatisticsAsync();
 
-                Console.WriteLine($"\n📊 Статистика:");
-                Console.WriteLine($"   Всего товаров в БД: {totalProducts}");
-                Console.WriteLine($"   Последний парсинг: {(lastParseDate?.ToString("dd.MM.yyyy HH:mm") ?? "Не было")}");
+                Console.WriteLine($"\n📊 Детальная статистика:");
+                Console.WriteLine($"   Всего товаров в БД: {statistics.TotalProducts}");
+                Console.WriteLine($"   Последний парсинг: {(statistics.LastParseDate?.ToString("dd.MM.yyyy HH:mm") ?? "Не было")}");
+                
+                if (statistics.ShopStatistics.Count > 0)
+                {
+                    Console.WriteLine("\n📈 Статистика по магазинам:");
+                    foreach (var shopStat in statistics.ShopStatistics)
+                    {
+                        Console.WriteLine($"   {shopStat.ShopName}: {shopStat.ProductCount} товаров (обновлено: {shopStat.LastUpdate:dd.MM.yyyy HH:mm})");
+                    }
+                }
                 
                 logger.LogInformation("Показана статистика: товаров {TotalProducts}, последний парсинг {LastParseDate}", 
-                    totalProducts, lastParseDate);
+                    statistics.TotalProducts, statistics.LastParseDate);
             }
             catch (Exception ex)
             {
@@ -196,70 +200,5 @@ namespace Aggregator
                     logging.AddDebug();
                     logging.SetMinimumLevel(LogLevel.Information);
                 });
-    }
-
-    /// <summary>
-    /// Основной сервис приложения для выполнения парсинга
-    /// </summary>
-    public class ParsingApplicationService
-    {
-        private readonly ParserManager _parserManager;
-        private readonly ApplicationDbContext _dbContext;
-        private readonly ILogger<ParsingApplicationService> _logger;
-
-        public ParsingApplicationService(
-            ParserManager parserManager, 
-            ApplicationDbContext dbContext,
-            ILogger<ParsingApplicationService> logger)
-        {
-            _parserManager = parserManager;
-            _dbContext = dbContext;
-            _logger = logger;
-        }
-
-        public async Task RunParsingAsync()
-        {
-            try
-            {
-                _logger.LogInformation("Начинаем парсинг...");
-                await _parserManager.ParseAllSites();
-
-                var allProducts = await _dbContext.Products
-                    .OrderByDescending(p => p.ParseDate)
-                    .ToListAsync();
-
-                _logger.LogInformation("Парсинг завершен. Найдено товаров: {ProductCount}", allProducts.Count);
-
-                Console.WriteLine("\nВсе товары в базе данных:");
-                Console.WriteLine("==========================");
-                
-                if (!allProducts.Any())
-                {
-                    Console.WriteLine("База данных пуста. Товары не найдены.");
-                }
-                else
-                {
-                    foreach (var product in allProducts)
-                    {
-                        var imageInfo = !string.IsNullOrEmpty(product.LocalImagePath) 
-                            ? $" [Изображение сохранено: {product.LocalImagePath}]" 
-                            : " [Без изображения]";
-                        Console.WriteLine($"{product.Shop} - {product.Name}: {product.Price}{imageInfo} (спаршено: {product.ParseDate})");
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Ошибка при выполнении парсинга");
-                
-                Console.WriteLine($"Произошла ошибка: {ex.Message}");
-                if (ex.InnerException != null)
-                {
-                    Console.WriteLine($"Внутренняя ошибка: {ex.InnerException.Message}");
-                    Console.WriteLine($"Стек вызовов: {ex.InnerException.StackTrace}");
-                }
-                throw;
-            }
-        }
     }
 }

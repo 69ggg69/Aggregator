@@ -5,6 +5,7 @@ using System.Net.Http;
 using System.Net;
 using Aggregator.Data;
 using Aggregator.Services;
+using Aggregator.Services.Application;
 using Aggregator.ParserServices;
 using Aggregator.Interfaces;
 
