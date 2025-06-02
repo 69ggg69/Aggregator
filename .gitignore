@@ -535,7 +535,6 @@ Thumbs.db
 
 # Test Data and Downloads
 tests/**/TestData/Downloads/
-tests/**/TestData/HtmlPages/askstudio/
 *.html.downloaded
 temp_test_files/
 
