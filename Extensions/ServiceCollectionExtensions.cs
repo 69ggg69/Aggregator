@@ -84,6 +84,7 @@ namespace Aggregator.Extensions
         public static IServiceCollection AddAggregatorServices(this IServiceCollection services, IConfiguration configuration)
         {
             return services
+                .AddConfigurationOptions(configuration)
                 .AddDatabase(configuration)
                 .AddHttpClients()
                 .AddApplicationServices()
