@@ -46,24 +46,20 @@ namespace Aggregator.ParserServices
     /// </remarks>
     /// <seealso cref="BaseParser"/>
     /// <seealso cref="ZnwrParser"/>
-    public class AskStudioParser : BaseParser
+    /// <remarks>
+    /// Инициализирует новый экземпляр парсера Ask Studio
+    /// </remarks>
+    /// <param name="context">Контекст базы данных для сохранения товаров</param>
+    /// <param name="clientFactory">Фабрика HTTP клиентов для выполнения запросов к сайту</param>
+    /// <param name="logger">Логгер для записи информации о работе парсера</param>
+    /// <param name="imageService">Сервис для загрузки и сохранения изображений товаров</param>
+    /// <exception cref="ArgumentNullException">Выбрасывается, если любой из параметров равен null</exception>
+    public class AskStudioParser(
+        ApplicationDbContext context,
+        IHttpClientFactory clientFactory,
+        ILogger<AskStudioParser> logger,
+        ImageService imageService) : BaseParser(context, clientFactory, logger, imageService)
     {
-        /// <summary>
-        /// Инициализирует новый экземпляр парсера Ask Studio
-        /// </summary>
-        /// <param name="context">Контекст базы данных для сохранения товаров</param>
-        /// <param name="clientFactory">Фабрика HTTP клиентов для выполнения запросов к сайту</param>
-        /// <param name="logger">Логгер для записи информации о работе парсера</param>
-        /// <param name="imageService">Сервис для загрузки и сохранения изображений товаров</param>
-        /// <exception cref="ArgumentNullException">Выбрасывается, если любой из параметров равен null</exception>
-        public AskStudioParser(
-            ApplicationDbContext context,
-            IHttpClientFactory clientFactory,
-            ILogger<AskStudioParser> logger,
-            ImageService imageService) 
-            : base(context, clientFactory, logger, imageService)
-        {
-        }
 
         /// <summary>
         /// Получает название магазина "Ask Studio"

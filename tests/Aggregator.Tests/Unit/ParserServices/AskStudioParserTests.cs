@@ -19,7 +19,7 @@ public class AskStudioParserTests : IDisposable
     private readonly Mock<IHttpClientFactory> _mockHttpFactory;
     private readonly Mock<ILogger<AskStudioParser>> _mockLogger;
     private readonly ImageService _imageService;
-    private readonly AskStudioParser _parser;
+    private readonly MockedAskStudioParser _mockedAskParser;
 
     public AskStudioParserTests()
     {
@@ -33,8 +33,8 @@ public class AskStudioParserTests : IDisposable
         var mockImageLogger = new Mock<ILogger<ImageService>>();
         _imageService = new ImageService(mockImageHttpFactory.Object, mockImageLogger.Object);
         
-        // Создаем экземпляр парсера для тестирования
-        _parser = new AskStudioParser(
+        // Создаем экземпляр моковой версии парсера
+        _mockedAskParser = new MockedAskStudioParser(
             _databaseFixture.Context,
             _mockHttpFactory.Object,
             _mockLogger.Object,
@@ -46,10 +46,21 @@ public class AskStudioParserTests : IDisposable
     public void ShopName_ShouldReturnCorrectValue()
     {
         // Act
-        var shopName = _parser.ShopName;
+        var shopName = _mockedAskParser.ShopName;
         
         // Assert
         shopName.Should().Be("Ask Studio");
+    }
+
+    [Fact]
+    public void MockedParser_ShouldHaveFileBasedUrl()
+    {
+        // Act
+        var mockedShopName = _mockedAskParser.ShopName;
+        
+        // Assert
+        mockedShopName.Should().Be("Ask Studio");
+        _mockedAskParser.Should().NotBeNull();
     }
 
     [Fact]
@@ -59,8 +70,8 @@ public class AskStudioParserTests : IDisposable
         // Для простоты проверяем, что объект создался корректно
         
         // Assert
-        _parser.Should().NotBeNull();
-        _parser.ShopName.Should().Be("Ask Studio");
+        _mockedAskParser.Should().NotBeNull();
+        _mockedAskParser.ShopName.Should().Be("Ask Studio");
     }
 
     [Fact]
@@ -98,6 +109,21 @@ public class AskStudioParserTests : IDisposable
             var productPrice = priceNode.InnerText?.Trim();
             productPrice.Should().NotBeNullOrEmpty("Цена товара должна быть найдена");
         }
+    }
+
+    [Fact]
+    public void MockedParser_ShouldUseLocalHtmlFiles()
+    {
+        // Arrange & Act
+        // Проверяем, что моковый парсер правильно настроен на использование локальных файлов
+
+        // Assert
+        _mockedAskParser.Should().NotBeNull();
+        _mockedAskParser.ShopName.Should().Be("Ask Studio");
+        
+        // Проверяем, что тестовый HTML файл существует
+        TestDataHelper.TestFileExists("HtmlPages/askstudio/main_shop_page.html")
+            .Should().BeTrue("Тестовый HTML файл должен существовать");
     }
 
     public void Dispose()

@@ -26,77 +26,69 @@ namespace Aggregator.ParserServices
     /// 
     /// Наследники должны определить специфичные для сайта селекторы и базовый URL.
     /// </remarks>
-    public abstract class BaseParser : IParser
+    /// <remarks>
+    /// Инициализирует новый экземпляр базового парсера
+    /// </remarks>
+    /// <param name="context">Контекст базы данных</param>
+    /// <param name="clientFactory">Фабрика HTTP клиентов</param>
+    /// <param name="logger">Логгер</param>
+    /// <param name="imageService">Сервис для работы с изображениями</param>
+    public abstract class BaseParser(
+        ApplicationDbContext context,
+        IHttpClientFactory clientFactory,
+        ILogger logger,
+        ImageService imageService) : IParser
     {
         /// <summary>
         /// Контекст базы данных для работы с товарами
         /// </summary>
-        protected readonly ApplicationDbContext _context;
-        
+        protected readonly ApplicationDbContext _context = context;
+
         /// <summary>
         /// Фабрика HTTP клиентов для выполнения веб-запросов
         /// </summary>
-        protected readonly IHttpClientFactory _clientFactory;
-        
+        protected readonly IHttpClientFactory _clientFactory = clientFactory;
+
         /// <summary>
         /// Логгер для записи информации о работе парсера
         /// </summary>
-        protected readonly ILogger _logger;
-        
+        protected readonly ILogger _logger = logger;
+
         /// <summary>
         /// Сервис для загрузки и сохранения изображений товаров
         /// </summary>
-        protected readonly ImageService _imageService;
-
-        /// <summary>
-        /// Инициализирует новый экземпляр базового парсера
-        /// </summary>
-        /// <param name="context">Контекст базы данных</param>
-        /// <param name="clientFactory">Фабрика HTTP клиентов</param>
-        /// <param name="logger">Логгер</param>
-        /// <param name="imageService">Сервис для работы с изображениями</param>
-        protected BaseParser(
-            ApplicationDbContext context,
-            IHttpClientFactory clientFactory,
-            ILogger logger,
-            ImageService imageService)
-        {
-            _context = context;
-            _clientFactory = clientFactory;
-            _logger = logger;
-            _imageService = imageService;
-        }
+        protected readonly ImageService _imageService = imageService;
 
         /// <summary>
         /// Получает название магазина. Должно быть реализовано в наследниках.
         /// </summary>
         /// <value>Уникальное название магазина</value>
         public abstract string ShopName { get; }
-        
+
         /// <summary>
         /// Получает базовый URL для парсинга. Должен быть реализован в наследниках.
         /// </summary>
         /// <value>URL страницы с товарами для парсинга</value>
         protected abstract string BaseUrl { get; }
-        
+
         /// <summary>
         /// Получает XPath селектор для контейнеров товаров. Должен быть реализован в наследниках.
         /// </summary>
         /// <value>XPath селектор, который выбирает все элементы товаров на странице</value>
         protected abstract string ProductSelector { get; }
-        
+
         /// <summary>
         /// Получает XPath селектор для названия товара. Должен быть реализован в наследниках.
         /// </summary>
         /// <value>XPath селектор относительно контейнера товара для извлечения названия</value>
         protected abstract string NameSelector { get; }
-        
+
         /// <summary>
         /// Получает XPath селектор для цены товара. Должен быть реализован в наследниках.
         /// </summary>
         /// <value>XPath селектор относительно контейнера товара для извлечения цены</value>
         protected abstract string PriceSelector { get; }
-        
+
         /// <summary>
         /// Получает XPath селектор для изображения товара. Должен быть реализован в наследниках.
         /// </summary>
@@ -115,10 +107,10 @@ namespace Aggregator.ParserServices
         /// 
         /// Поддерживает как абсолютные, так и относительные URL.
         /// </remarks>
-        protected virtual string ExtractImageUrl(HtmlNode node)
+        protected virtual string? ExtractImageUrl(HtmlNode node)
         {
             var imageNode = node.SelectSingleNode(ImageSelector);
-            if (imageNode == null) return string.Empty;
+            if (imageNode == null) return null;
 
             // Для тега img с атрибутом src
             var src = imageNode.GetAttributeValue("src", "");
@@ -134,12 +126,13 @@ namespace Aggregator.ParserServices
                 var urlMatch = System.Text.RegularExpressions.Regex.Match(style, @"url\(([^)]+)\)");
                 if (urlMatch.Success)
                 {
+                    // TODO: why [1] ?
                     var url = urlMatch.Groups[1].Value.Trim('"', '\'');
                     return NormalizeImageUrl(url);
                 }
             }
 
-            return string.Empty;
+            return null;
         }
 
         /// <summary>
@@ -152,11 +145,12 @@ namespace Aggregator.ParserServices
         /// Абсолютные URL возвращаются без изменений.
         /// </remarks>
         protected virtual string NormalizeImageUrl(string url)
+        // TODO: change in mocked class
         {
             if (string.IsNullOrEmpty(url)) return string.Empty;
 
             // Если URL относительный, добавляем базовый домен
-            if (url.StartsWith("/"))
+            if (url.StartsWith('/'))
             {
                 var baseUri = new Uri(BaseUrl);
                 return $"{baseUri.Scheme}://{baseUri.Host}{url}";
@@ -185,8 +179,8 @@ namespace Aggregator.ParserServices
         {
             var products = new List<Product>();
             var web = new HtmlWeb();
-            
-            try 
+
+            try
             {
                 var doc = await web.LoadFromWebAsync(BaseUrl);
                 var productNodes = doc.DocumentNode.SelectNodes(ProductSelector);
@@ -210,12 +204,10 @@ namespace Aggregator.ParserServices
                                 .Replace("₽", "")
                                 .Trim();
 
-                            var productKey = $"{name}_{price}";
+                            var productKey = $"{name}_{(string.IsNullOrEmpty(price) ? "PRICEERROR" : price)}";
 
-                            if (!uniqueProducts.Contains(productKey))
+                            if (!uniqueProducts.Add(productKey))
                             {
-                                uniqueProducts.Add(productKey);
-                                
                                 // Загружаем и сохраняем изображение
                                 string? localImagePath = null;
                                 if (!string.IsNullOrEmpty(imageUrl))
@@ -226,31 +218,31 @@ namespace Aggregator.ParserServices
                                 products.Add(new Product
                                 {
                                     Name = name,
-                                    Price = price ?? string.Empty,
                                     Shop = ShopName,
                                     ParseDate = DateTime.UtcNow,
+                                    Price = price,
                                     ImageUrl = imageUrl,
                                     LocalImagePath = localImagePath
                                 });
                             }
                             else
                             {
-                                _logger.LogInformation($"Пропущен дубликат товара: {name} - {price}");
+                                _logger.LogInformation("Пропущен дубликат товара: {name} - {price}", name, price);
                             }
                         }
                     }
                 }
 
-                _logger.LogInformation($"Найдено {products.Count} уникальных товаров из {productNodes?.Count ?? 0} элементов");
+                _logger.LogInformation("Найдено {productsCount} уникальных товаров из {productNodesCount} элементов", products.Count, productNodes?.Count ?? 0);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Ошибка при загрузке страницы {ShopName}");
+                _logger.LogError(ex, "Ошибка при загрузке страницы {ShopName}", ShopName);
                 if (ex.InnerException != null)
                 {
                     _logger.LogError(ex.InnerException, "Внутренняя ошибка");
                 }
-                return new List<Product>();
+                return [];
             }
 
             return products;
@@ -277,22 +269,22 @@ namespace Aggregator.ParserServices
             {
                 var client = _clientFactory.CreateClient("SafeHttpClient");
                 var products = await ParseProducts();
-                
+
                 var existingProducts = await _context.Products
                     .Where(p => p.Shop == ShopName && p.ParseDate.Date == DateTime.UtcNow.Date)
                     .ToListAsync();
-                
+
                 var newProducts = products
-                    .Where(p => !existingProducts.Any(ep => 
-                        ep.Name == p.Name && 
+                    .Where(p => !existingProducts.Any(ep =>
+                        ep.Name == p.Name &&
                         ep.Price == p.Price))
                     .ToList();
 
-                if (newProducts.Any())
+                if (newProducts.Count > 0)
                 {
                     await _context.Products.AddRangeAsync(newProducts);
                     await _context.SaveChangesAsync();
-                    _logger.LogInformation($"Добавлено {newProducts.Count} новых товаров");
+                    _logger.LogInformation("Добавлено {newProductsCount} новых товаров", newProducts.Count);
                 }
                 else
                 {
@@ -301,9 +293,9 @@ namespace Aggregator.ParserServices
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Ошибка при парсинге {ShopName}");
+                _logger.LogError(ex, "Ошибка при парсинге {ShopName}", ShopName);
                 throw;
             }
         }
     }
-} 
+}
