@@ -27,6 +27,7 @@
     
     <!-- Для интеграционных тестов ASP.NET -->
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="8.0.0" />
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="8.0.0" />
   </ItemGroup>
 
   <ItemGroup>
@@ -35,6 +36,13 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Aggregator\Aggregator.csproj" />
+  </ItemGroup>
+
+  <!-- Копируем тестовые данные в папку сборки -->
+  <ItemGroup>
+    <Content Include="TestData\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
 </Project>

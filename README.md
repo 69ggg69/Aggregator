@@ -196,30 +196,208 @@ dotnet ef migrations script
 | Docker | postgres | 5432 | aggregator | Container name as host |
 | Production | [configured] | 5432 | aggregator | Production server |
 
+## 🧪 Testing
+
+The project includes comprehensive unit and integration tests using xUnit, Moq, FluentAssertions, and TestContainers.
+
+### Test Project Structure
+
+```
+tests/Aggregator.Tests/
+├── Unit/                              # Unit tests
+│   └── ParserServices/
+│       └── AskStudioParserTests.cs   # Parser unit tests
+├── Integration/                       # Integration tests (future)
+├── Fixtures/                         # Test fixtures and helpers
+│   ├── DatabaseFixture.cs           # In-memory database setup
+│   └── TestDataHelper.cs            # Test data utilities
+├── Helpers/                          # Test helper classes
+│   ├── ProductBuilder.cs            # Builder pattern for test objects
+│   └── MockHttpClientFactory.cs     # HTTP client mocking
+└── TestData/                        # Real HTML data for testing
+    └── HtmlPages/askstudio/          # Downloaded HTML files
+        ├── main_shop_page.html
+        ├── shop_page_2.html
+        └── category_aksessuary.html
+```
+
+### Running Tests
+
+#### 📋 All Tests
+
+```bash
+# Run all tests
+dotnet test
+
+# Run tests with detailed output
+dotnet test -v normal
+
+# Run tests with coverage (if coverlet installed)
+dotnet test --collect:"XPlat Code Coverage"
+```
+
+#### 🎯 Specific Test Categories
+
+```bash
+# Run only unit tests
+dotnet test --filter "Category=Unit"
+
+# Run tests for specific class
+dotnet test --filter "AskStudioParserTests"
+
+# Run specific test method
+dotnet test --filter "ShopName_ShouldReturnCorrectValue"
+
+# Run tests with pattern matching
+dotnet test --filter "FullyQualifiedName~AskStudioParser"
+```
+
+#### 🏷️ Test Filtering Examples
+
+```bash
+# Run tests by namespace
+dotnet test --filter "FullyQualifiedName~Unit.ParserServices"
+
+# Run tests by multiple criteria (AND)
+dotnet test --filter "TestCategory=Unit&FullyQualifiedName~Parser"
+
+# Run tests by multiple criteria (OR)
+dotnet test --filter "TestCategory=Unit|TestCategory=Integration"
+
+# Exclude specific tests
+dotnet test --filter "TestCategory!=Slow"
+```
+
+### Test Dependencies
+
+The test project includes the following NuGet packages:
+
+| Package | Purpose | Usage |
+|---------|---------|-------|
+| **xUnit** | Test framework | `[Fact]`, `[Theory]` attributes |
+| **Moq** | Mocking framework | `Mock<T>` for dependencies |
+| **FluentAssertions** | Better assertions | `.Should().Be()`, `.Should().NotBeNull()` |
+| **EntityFrameworkCore.InMemory** | In-memory database | Unit testing with EF Core |
+| **Testcontainers.PostgreSql** | Real database containers | Integration testing |
+| **Microsoft.AspNetCore.Mvc.Testing** | ASP.NET integration tests | `WebApplicationFactory<T>` |
+
+### Test Data Management
+
+#### 📥 Downloading Test Data
+
+Real HTML files are used for parser testing. To refresh test data:
+
+```bash
+# Run the download script
+./download_test_data.sh
+
+# Or download manually with curl
+curl -o tests/Aggregator.Tests/TestData/HtmlPages/askstudio/main_shop_page.html \
+     "https://askstudio.ru/shop/"
+```
+
+#### 📁 Test Data Usage
+
+```csharp
+// Reading test HTML files in tests
+var htmlContent = TestDataHelper.ReadTestFile("HtmlPages/askstudio/main_shop_page.html");
+
+// Using ProductBuilder for test objects
+var product = new ProductBuilder()
+    .WithName("Test Product")
+    .WithPrice("1500")
+    .WithShop("Ask Studio")
+    .Build();
+```
+
+### Writing Tests
+
+#### 🔧 Unit Test Example
+
+```csharp
+[Fact]
+public void ShopName_ShouldReturnCorrectValue()
+{
+    // Arrange
+    var parser = new AskStudioParser(context, httpFactory, logger, imageService);
+    
+    // Act
+    var shopName = parser.ShopName;
+    
+    // Assert
+    shopName.Should().Be("Ask Studio");
+}
+```
+
+#### 🌐 Integration Test Example (Future)
+
+```csharp
+[Fact]
+public async Task ParseAsync_ShouldSaveProductsToDatabase()
+{
+    // Arrange
+    using var container = new PostgreSqlBuilder().Build();
+    await container.StartAsync();
+    
+    // Act & Assert
+    // Test full parsing workflow with real database
+}
+```
+
+### Test Configuration
+
+Tests automatically:
+- ✅ **Copy HTML files** to output directory
+- ✅ **Setup in-memory database** for unit tests  
+- ✅ **Mock HTTP clients** to avoid real web requests
+- ✅ **Use test-specific configuration** 
+- ✅ **Clean up resources** after each test
+
+### Test Best Practices
+
+1. **📝 Follow AAA Pattern**: Arrange, Act, Assert
+2. **🏷️ Use descriptive test names**: `Method_Scenario_ExpectedResult`
+3. **🧹 Keep tests isolated**: Each test should be independent
+4. **📊 Use builders for complex objects**: `ProductBuilder`, `ParserBuilder`
+5. **🎭 Mock external dependencies**: HTTP clients, file system, etc.
+6. **📐 Test edge cases**: null values, empty strings, malformed HTML
+7. **⚡ Prefer unit over integration tests**: Faster execution, easier debugging
+
 ## 🏗️ Project Structure
 
 ```
 Aggregator/
-├── Configuration/              # Strongly-typed configuration models
-│   ├── DatabaseOptions.cs     # Database settings
-│   ├── HttpClientOptions.cs   # HTTP client settings
-│   └── ParsingOptions.cs      # Parsing settings
-├── Data/                      # Database context and configurations
-├── Extensions/                # Extension methods for DI and configuration
-│   ├── ServiceCollectionExtensions.cs
-│   └── ConfigurationExtensions.cs
-├── Interfaces/                # Service interfaces
-├── Migrations/                # Entity Framework migrations
-├── Models/                    # Data models
-├── ParserServices/            # Website parser implementations
-├── Services/                  # Business logic services
-│   └── Application/
-│       └── ParsingApplicationService.cs
-├── appsettings.json           # Base configuration
-├── appsettings.Development.json # Development overrides
-├── appsettings.Docker.json    # Docker overrides
-├── docker-compose.yml         # Multi-container orchestration
-└── Program.cs                # Application entry point
+├── src/
+│   └── Aggregator/                    # Main application
+│       ├── Configuration/             # Strongly-typed configuration models
+│       │   ├── DatabaseOptions.cs    # Database settings
+│       │   ├── HttpClientOptions.cs  # HTTP client settings
+│       │   └── ParsingOptions.cs     # Parsing settings
+│       ├── Data/                     # Database context and configurations
+│       ├── Extensions/               # Extension methods for DI and configuration
+│       │   ├── ServiceCollectionExtensions.cs
+│       │   └── ConfigurationExtensions.cs
+│       ├── Interfaces/               # Service interfaces
+│       ├── Migrations/               # Entity Framework migrations
+│       ├── Models/                   # Data models
+│       ├── ParserServices/           # Website parser implementations
+│       ├── Services/                 # Business logic services
+│       │   └── Application/
+│       │       └── ParsingApplicationService.cs
+│       ├── appsettings.json          # Base configuration
+│       ├── appsettings.Development.json # Development overrides
+│       ├── appsettings.Docker.json   # Docker overrides
+│       └── Program.cs               # Application entry point
+├── tests/
+│   └── Aggregator.Tests/            # Test project
+│       ├── Unit/                    # Unit tests
+│       ├── Integration/             # Integration tests
+│       ├── Fixtures/                # Test fixtures
+│       ├── Helpers/                 # Test helpers
+│       └── TestData/                # Test data files
+├── docker-compose.yml               # Multi-container orchestration
+├── download_test_data.sh            # Script to download test HTML
+└── README.md                        # This file
 ```
 
 ## 🔧 Environment-Specific Features
@@ -272,6 +450,26 @@ echo $env:ASPNETCORE_ENVIRONMENT      # PowerShell
    - Verify JSON syntax is valid
    - Check configuration section names match exactly
 
+### Test Troubleshooting
+
+**Test data files not found:**
+```bash
+# Ensure test data exists
+ls tests/Aggregator.Tests/TestData/HtmlPages/askstudio/
+
+# Re-download if missing
+./download_test_data.sh
+```
+
+**Tests fail with database errors:**
+```bash
+# Clear test databases
+dotnet test --logger console --verbosity detailed
+
+# Check test configuration
+dotnet test --collect:"XPlat Code Coverage" --logger:trx
+```
+
 ## 🚀 Production Deployment
 
 ### Environment Variables for Production
@@ -306,6 +504,9 @@ docker-compose --env-file .env.production up -d
 - [Entity Framework Core Documentation](https://docs.microsoft.com/en-us/ef/core/)
 - [Docker Documentation](https://docs.docker.com/)
 - [PostgreSQL Documentation](https://www.postgresql.org/docs/)
+- [xUnit Testing Documentation](https://xunit.net/docs/getting-started/netcore/cmdline)
+- [Moq Framework Documentation](https://github.com/moq/moq4)
+- [FluentAssertions Documentation](https://fluentassertions.com/introduction)
 
 ## 🤝 Contributing
 
@@ -318,7 +519,10 @@ docker-compose --env-file .env.production up -d
    dotnet ef database update
    ```
 4. Make your changes
-5. Test with `dotnet run`
+5. **Run tests to ensure everything works**:
+   ```bash
+   dotnet test
+   ```
 6. Submit a pull request
 
 ---
@@ -333,6 +537,7 @@ docker-compose --env-file .env.production up -d
 | **Set Docker** | `set ASPNETCORE_ENVIRONMENT=Docker` | `$env:ASPNETCORE_ENVIRONMENT="Docker"` | `export ASPNETCORE_ENVIRONMENT=Docker` |
 | **Check Current** | `echo %ASPNETCORE_ENVIRONMENT%` | `echo $env:ASPNETCORE_ENVIRONMENT` | `echo $ASPNETCORE_ENVIRONMENT` |
 | **Run App** | `dotnet run` | `dotnet run` | `dotnet run` |
+| **Run Tests** | `dotnet test` | `dotnet test` | `dotnet test` |
 
 ### Development Workflow
 
@@ -341,5 +546,22 @@ docker-compose --env-file .env.production up -d
 export ASPNETCORE_ENVIRONMENT=Development    # Set environment
 docker-compose up -d postgres               # Start database
 dotnet ef database update                   # Apply migrations
+dotnet test                                 # Run tests
 dotnet run                                  # Run application
+```
+
+### Testing Workflow
+
+```bash
+# Download fresh test data
+./download_test_data.sh
+
+# Run all tests
+dotnet test -v normal
+
+# Run specific parser tests
+dotnet test --filter "AskStudioParserTests"
+
+# Run tests with coverage
+dotnet test --collect:"XPlat Code Coverage"
 ``` 
