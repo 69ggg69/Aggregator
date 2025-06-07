@@ -39,7 +39,7 @@ echo
 echo "Скачиваем страницы магазина..."
 
 download_page "https://askstudio.ru/shop/" "main_shop_page.html"
-download_page "https://askstudio.ru/shop/?page=2" "shop_page_2.html" 
+download_page "https://askstudio.ru/shop/?page=30" "shop_page_2.html" 
 download_page "https://askstudio.ru/shop/category/aksessuary/" "category_aksessuary.html"
 
 echo
