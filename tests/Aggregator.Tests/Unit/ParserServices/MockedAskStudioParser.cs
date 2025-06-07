@@ -13,15 +13,13 @@ namespace Aggregator.Tests.Unit.ParserServices;
 /// <remarks>
 /// Инициализирует новый экземпляр MockedAskStudioParser
 /// </remarks>
-/// <param name="context">Контекст базы данных</param>
 /// <param name="clientFactory">Фабрика HTTP клиентов</param>
 /// <param name="logger">Логгер</param>
 /// <param name="imageService">Сервис изображений</param>
 public class MockedAskStudioParser(
-    ApplicationDbContext context,
     IHttpClientFactory clientFactory,
     ILogger<AskStudioParser> logger,
-    ImageService imageService) : AskStudioParser(context, clientFactory, logger, imageService)
+    ImageService imageService) : AskStudioParser(clientFactory, logger, imageService)
 {
 
     /// <summary>

@@ -36,7 +36,6 @@ public class AskStudioParserTests : IDisposable
 
         // Создаем экземпляр моковой версии парсера
         _mockedAskParser = new MockedAskStudioParser(
-            _databaseFixture.Context,
             _mockHttpFactory.Object,
             _testsLogger,
             _imageService
