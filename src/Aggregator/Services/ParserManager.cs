@@ -11,22 +11,17 @@ using Aggregator.Interfaces;
 
 namespace Aggregator.Services
 {
-    public class ParserManager
+    public class ParserManager(IEnumerable<IParser> parsers, ApplicationDbContext context, ILogger<ParserManager> logger)
     {
-        private readonly IEnumerable<IParser> _parsers;
-        private readonly ApplicationDbContext _context;
+        private readonly IEnumerable<IParser> _parsers = parsers;
+        private readonly ApplicationDbContext _context = context;
 
-        public ParserManager(IEnumerable<IParser> parsers, ApplicationDbContext context)
-        {
-            _parsers = parsers;
-            _context = context;
-        }
+        private readonly ILogger<ParserManager> _logger = logger;
 
         public async Task ParseAllSites()
         {
             foreach (var parser in _parsers)
             {
-                Console.WriteLine($"Начинаем парсинг {parser.ShopName}...");
                 try
                 {
                     await parser.ParseAsync();
@@ -36,21 +31,14 @@ namespace Aggregator.Services
                                p.ParseDate.Date == DateTime.UtcNow.Date)
                         .ToListAsync();
 
-                    Console.WriteLine($"\nРезультаты парсинга {parser.ShopName}:");
-                    Console.WriteLine($"Найдено товаров: {todayProducts.Count}");
                     
-                    foreach (var product in todayProducts)
-                    {
-                        Console.WriteLine($"- {product.Name}: {product.Price}");
-                    }
-                    Console.WriteLine();
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Ошибка при парсинге {parser.ShopName}: {ex.Message}");
+                    _logger.LogError(ex, "Ошибка при парсинге {ShopName}", parser.ShopName);
                 }
             }
-            Console.WriteLine("Парсинг завершен!");
+            _logger.LogInformation("Парсинг завершен!");
         }
     }
 } 

@@ -8,21 +8,14 @@ namespace Aggregator.Services.Application
     /// <summary>
     /// Основной сервис приложения для выполнения парсинга
     /// </summary>
-    public class ParsingApplicationService
+    public class ParsingApplicationService(
+        ParserManager parserManager,
+        ApplicationDbContext dbContext,
+        ILogger<ParsingApplicationService> logger)
     {
-        private readonly ParserManager _parserManager;
-        private readonly ApplicationDbContext _dbContext;
-        private readonly ILogger<ParsingApplicationService> _logger;
-
-        public ParsingApplicationService(
-            ParserManager parserManager, 
-            ApplicationDbContext dbContext,
-            ILogger<ParsingApplicationService> logger)
-        {
-            _parserManager = parserManager;
-            _dbContext = dbContext;
-            _logger = logger;
-        }
+        private readonly ParserManager _parserManager = parserManager;
+        private readonly ApplicationDbContext _dbContext = dbContext;
+        private readonly ILogger<ParsingApplicationService> _logger = logger;
 
         /// <summary>
         /// Выполняет полный цикл парсинга всех сайтов

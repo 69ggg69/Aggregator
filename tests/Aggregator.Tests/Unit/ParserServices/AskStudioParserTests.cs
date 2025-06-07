@@ -1,12 +1,12 @@
+using System.Threading.Tasks;
 using Aggregator.ParserServices;
+using Aggregator.Services;
 using Aggregator.Tests.Fixtures;
 using Aggregator.Tests.Helpers;
 using FluentAssertions;
+using HtmlAgilityPack;
 using Microsoft.Extensions.Logging;
 using Moq;
-using Aggregator.Services;
-using HtmlAgilityPack;
-using System.Threading.Tasks;
 
 namespace Aggregator.Tests.Unit.ParserServices;
 
@@ -17,8 +17,8 @@ namespace Aggregator.Tests.Unit.ParserServices;
 public class AskStudioParserTests : IDisposable
 {
     private readonly DatabaseFixture _databaseFixture;
+    private readonly ILogger<AskStudioParser> _testsLogger;
     private readonly Mock<IHttpClientFactory> _mockHttpFactory;
-    private readonly Mock<ILogger<AskStudioParser>> _mockLogger;
     private readonly ImageService _imageService;
     private readonly MockedAskStudioParser _mockedAskParser;
 
@@ -27,7 +27,7 @@ public class AskStudioParserTests : IDisposable
         // Настраиваем тестовое окружение
         _databaseFixture = new DatabaseFixture();
         _mockHttpFactory = new Mock<IHttpClientFactory>();
-        _mockLogger = new Mock<ILogger<AskStudioParser>>();
+        _testsLogger = TestLogger.Create<AskStudioParser>();
 
         // Создаем мок ImageService с правильными параметрами
         var mockImageHttpFactory = new Mock<IHttpClientFactory>();
@@ -38,7 +38,7 @@ public class AskStudioParserTests : IDisposable
         _mockedAskParser = new MockedAskStudioParser(
             _databaseFixture.Context,
             _mockHttpFactory.Object,
-            _mockLogger.Object,
+            _testsLogger,
             _imageService
         );
     }
@@ -82,8 +82,6 @@ public class AskStudioParserTests : IDisposable
 
         // Assert
         products.Should().NotBeNull();
-        // _mockLogger.
-        Console.WriteLine("Products count: " + products.Count);
         products.Should().HaveCountGreaterThan(0);
         products.Should().OnlyContain(p => !string.IsNullOrEmpty(p.Name));
     }
@@ -92,55 +90,43 @@ public class AskStudioParserTests : IDisposable
     /// Пример теста с РЕАЛЬНЫМ логгером - логи будут видны в консоли
     /// </summary>
     [Fact]
-    public async Task ParseProducts_WithRealLogger_ShouldShowLogsInConsole()
+    public async Task ParseProducts_ShouldParseFirstProduct()
     {
-        // Arrange - создаем реальный логгер
-        var realLogger = TestLogger.Create<AskStudioParser>();
-        
-        var parserWithRealLogger = new MockedAskStudioParser(
-            _databaseFixture.Context,
-            _mockHttpFactory.Object,
-            realLogger, // РЕАЛЬНЫЙ логгер вместо мока!
-            _imageService
-        );
+        _testsLogger.LogInformation("🧪 Начинаем тест с реальным логгером 2");
 
-        realLogger.LogInformation("🧪 Начинаем тест с реальным логгером");
 
         // Act
-        var products = await parserWithRealLogger.ParseProducts();
+        var products = await _mockedAskParser.ParseProducts();
+
+        {
+            // Show first product name and price
+            var firstProduct = products.First();
+            _testsLogger.LogInformation("Первый товар: {name}, цена: {price}", firstProduct.Name, firstProduct.Price);
+            firstProduct.Name.Should().Be("Cумка Tub Butter Mini");
+            firstProduct.Price.Should().Be("13500");
+        }
 
         // Assert
         products.Should().NotBeNull();
-        realLogger.LogInformation("✅ Найдено товаров: {ProductCount}", products.Count);
-        
+
         products.Should().HaveCountGreaterThan(0);
-        realLogger.LogInformation("🎉 Тест успешно завершен!");
     }
 
     /// <summary>
     /// САМЫЙ ПРОСТОЙ способ видеть логи - используем статические методы Log
     /// </summary>
     [Fact]
-    public async Task ParseProducts_WithSimpleLogging_SuperEasy()
+    public async Task ParseProducts_ShouldParseManyProducts()
     {
-        Log.Info("🚀 Начинаем самый простой тест с логами");
-        
         // Arrange
-        Log.Debug("Настраиваем тестовые данные...");
         var products = await _mockedAskParser.ParseProducts();
 
         // Act & Assert
         products.Should().NotBeNull();
-        Log.Info("Найдено товаров: {0}", products.Count);
-        
-        if (products.Count > 0)
-        {
-            Log.Info("Первый товар: {0}", products[0].Name);
-            Log.Info("Цена первого товара: {0}", products[0].Price);
-        }
+
 
         products.Should().HaveCountGreaterThan(0);
-        Log.Info("✅ Тест прошел успешно!");
+        _testsLogger.LogInformation("✅ Тест прошел успешно!");
     }
 
     [Fact]
@@ -161,5 +147,6 @@ public class AskStudioParserTests : IDisposable
     public void Dispose()
     {
         _databaseFixture.Dispose();
+        GC.SuppressFinalize(this);
     }
 }
