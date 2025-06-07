@@ -33,4 +33,50 @@ public class MockedAskStudioParser(
     /// </remarks>
     protected override string BaseUrl =>
         $"file://{TestDataHelper.GetTestFilePath("HtmlPages/askstudio/main_shop_page.html")}";
+
+
+    /// <summary>
+    /// Возвращает базовый URL для тестирования
+    /// </summary>
+    /// <returns>Базовый URL</returns>
+    public string GetBaseUrl()
+    {
+        return BaseUrl;
+    }
+
+    /// <summary>
+    /// Возвращает селектор для товаров
+    /// </summary>
+    /// <returns>Селектор для товаров</returns>
+    public string GetProductSelector()
+    {
+        return ProductSelector;
+    }
+
+    /// <summary>
+    /// Возвращает селектор для названия товара
+    /// </summary>
+    /// <returns>Селектор для названия товара</returns>
+    public string GetNameSelector()
+    {
+        return NameSelector;
+    }
+
+    /// <summary>
+    /// Возвращает селектор для цены товара
+    /// </summary>
+    /// <returns>Селектор для цены товара</returns>
+    public string GetPriceSelector()
+    {
+        return PriceSelector;
+    }
+
+    /// <summary>
+    /// Возвращает селектор для изображения товара
+    /// </summary>
+    /// <returns>Селектор для изображения товара</returns>
+    public string GetImageSelector()
+    {
+        return ImageSelector;
+    }
 }

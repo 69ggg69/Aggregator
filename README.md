@@ -565,3 +565,12 @@ dotnet test --filter "AskStudioParserTests"
 # Run tests with coverage
 dotnet test --collect:"XPlat Code Coverage"
 ``` 
+
+
+
+### Logging with tests
+
+```bash
+# example:
+cd tests/Aggregator.Tests && dotnet test --filter "ParseProducts_WithSimpleLogging_SuperEasy" --verbosity normal
+```

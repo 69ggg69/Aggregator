@@ -2,6 +2,7 @@ using Aggregator.Data;
 using Aggregator.Interfaces;
 using Aggregator.Models;
 using Aggregator.Services;
+using Aggregator.Helpers;
 using HtmlAgilityPack;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -178,11 +179,30 @@ namespace Aggregator.ParserServices
         public async Task<List<Product>> ParseProducts()
         {
             var products = new List<Product>();
-            var web = new HtmlWeb();
+            var doc = new HtmlDocument();
 
             try
             {
-                var doc = await web.LoadFromWebAsync(BaseUrl);
+                // Если URL - то загружаем из веба, если путь к файлу - то из файла
+                if (BaseUrl.StartsWith("http://") || BaseUrl.StartsWith("https://"))
+                {
+                    var web = new HtmlWeb();
+                    doc = await web.LoadFromWebAsync(BaseUrl);
+                }
+                else if (BaseUrl.StartsWith("file://"))
+                {
+                    // Убираем префикс file:// и загружаем локальный файл
+                    var filePath = BaseUrl.Replace("file://", "");
+                    var html = await File.ReadAllTextAsync(filePath);
+                    doc.LoadHtml(html);
+                }
+                else
+                {
+                    // Предполагаем что это путь к файлу
+                    var html = await File.ReadAllTextAsync(BaseUrl);
+                    doc.LoadHtml(html);
+                }
+
                 var productNodes = doc.DocumentNode.SelectNodes(ProductSelector);
 
                 var uniqueProducts = new HashSet<string>();
@@ -202,11 +222,11 @@ namespace Aggregator.ParserServices
                                 .Replace("РУБ", "")
                                 .Replace("руб", "")
                                 .Replace("₽", "")
-                                .Trim();
+                                .Replace(" ", "");
 
                             var productKey = $"{name}_{(string.IsNullOrEmpty(price) ? "PRICEERROR" : price)}";
 
-                            if (!uniqueProducts.Add(productKey))
+                            if (uniqueProducts.Add(productKey))
                             {
                                 // Загружаем и сохраняем изображение
                                 string? localImagePath = null;
