@@ -39,7 +39,7 @@ namespace Aggregator.ParserServices
     /// <strong>Пример использования:</strong>
     /// </para>
     /// <code>
-    /// var parser = new AskStudioParser(context, httpFactory, logger, imageService);
+    /// var parser = new AskStudioParser(httpFactory, logger, imageService);
     /// var products = await parser.ParseProducts();
     /// await parser.ParseAsync(); // Полный цикл с сохранением в БД
     /// </code>
@@ -49,16 +49,14 @@ namespace Aggregator.ParserServices
     /// <remarks>
     /// Инициализирует новый экземпляр парсера Ask Studio
     /// </remarks>
-    /// <param name="context">Контекст базы данных для сохранения товаров</param>
     /// <param name="clientFactory">Фабрика HTTP клиентов для выполнения запросов к сайту</param>
     /// <param name="logger">Логгер для записи информации о работе парсера</param>
     /// <param name="imageService">Сервис для загрузки и сохранения изображений товаров</param>
     /// <exception cref="ArgumentNullException">Выбрасывается, если любой из параметров равен null</exception>
     public class AskStudioParser(
-        ApplicationDbContext context,
         IHttpClientFactory clientFactory,
         ILogger<AskStudioParser> logger,
-        ImageService imageService) : BaseParser(context, clientFactory, logger, imageService)
+        ImageService imageService) : BaseParser(clientFactory, logger, imageService)
     {
 
         /// <summary>

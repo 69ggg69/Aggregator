@@ -8,6 +8,7 @@ using Aggregator.Services;
 using Aggregator.Services.Application;
 using Aggregator.ParserServices;
 using Aggregator.Interfaces;
+using Aggregator.Repositories;
 
 namespace Aggregator.Extensions
 {
@@ -52,9 +53,24 @@ namespace Aggregator.Extensions
             // Core application services
             services.AddScoped<ParsingApplicationService>();
             services.AddScoped<ParserManager>();
+            services.AddScoped<ParsingService>();
             
             // Infrastructure services
             services.AddScoped<ImageService>();
+            
+            return services;
+        }
+
+        /// <summary>
+        /// Добавляет репозитории и сервисы для работы с базой данных
+        /// </summary>
+        public static IServiceCollection AddDataServices(this IServiceCollection services)
+        {
+            // Repositories
+            services.AddScoped<IProductRepository, ProductRepository>();
+            
+            // Database service
+            services.AddScoped<IDatabaseService, DatabaseService>();
             
             return services;
         }
@@ -87,6 +103,7 @@ namespace Aggregator.Extensions
                 .AddConfigurationOptions(configuration)
                 .AddDatabase(configuration)
                 .AddHttpClients()
+                .AddDataServices()           // Новые сервисы для работы с БД
                 .AddApplicationServices()
                 .AddParsers();
         }

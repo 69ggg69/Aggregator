@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.EntityFrameworkCore;
 using Aggregator.Data;
 using Aggregator.Services;
+using Aggregator.Models;
 
 namespace Aggregator.Services.Application
 {
@@ -113,23 +114,5 @@ namespace Aggregator.Services.Application
         }
     }
 
-    /// <summary>
-    /// Статистика парсинга
-    /// </summary>
-    public class ParsingStatistics
-    {
-        public int TotalProducts { get; set; }
-        public DateTime? LastParseDate { get; set; }
-        public List<ShopStatistics> ShopStatistics { get; set; } = new();
-    }
 
-    /// <summary>
-    /// Статистика по магазину
-    /// </summary>
-    public class ShopStatistics
-    {
-        public string ShopName { get; set; } = string.Empty;
-        public int ProductCount { get; set; }
-        public DateTime LastUpdate { get; set; }
-    }
 } 

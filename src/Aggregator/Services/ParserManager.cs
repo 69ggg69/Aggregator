@@ -24,7 +24,7 @@ namespace Aggregator.Services
             {
                 try
                 {
-                    await parser.ParseAsync();
+                    await parser.ParseProducts();
                     
                     var todayProducts = await _context.Products
                         .Where(p => p.Shop == parser.ShopName && 

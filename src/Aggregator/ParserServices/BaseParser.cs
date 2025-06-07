@@ -30,20 +30,14 @@ namespace Aggregator.ParserServices
     /// <remarks>
     /// Инициализирует новый экземпляр базового парсера
     /// </remarks>
-    /// <param name="context">Контекст базы данных</param>
     /// <param name="clientFactory">Фабрика HTTP клиентов</param>
     /// <param name="logger">Логгер</param>
     /// <param name="imageService">Сервис для работы с изображениями</param>
     public abstract class BaseParser(
-        ApplicationDbContext context,
         IHttpClientFactory clientFactory,
         ILogger logger,
         ImageService imageService) : IParser
     {
-        /// <summary>
-        /// Контекст базы данных для работы с товарами
-        /// </summary>
-        protected readonly ApplicationDbContext _context = context;
 
         /// <summary>
         /// Фабрика HTTP клиентов для выполнения веб-запросов
@@ -268,54 +262,6 @@ namespace Aggregator.ParserServices
             return products;
         }
 
-        /// <summary>
-        /// Выполняет полный цикл парсинга: извлекает товары и сохраняет новые в базу данных
-        /// </summary>
-        /// <returns>Задача, представляющая асинхронную операцию парсинга</returns>
-        /// <exception cref="Exception">Выбрасывается при критических ошибках парсинга или сохранения</exception>
-        /// <remarks>
-        /// Метод выполняет следующие действия:
-        /// 1. Парсит товары с сайта используя ParseProducts()
-        /// 2. Загружает существующие товары из БД за текущий день
-        /// 3. Фильтрует только новые товары (не найденные в БД)
-        /// 4. Сохраняет новые товары в базу данных
-        /// 5. Логирует результаты операции
-        /// 
-        /// Товары считаются дубликатами, если совпадают название и цена.
-        /// </remarks>
-        public async Task ParseAsync()
-        {
-            try
-            {
-                var client = _clientFactory.CreateClient("SafeHttpClient");
-                var products = await ParseProducts();
 
-                var existingProducts = await _context.Products
-                    .Where(p => p.Shop == ShopName && p.ParseDate.Date == DateTime.UtcNow.Date)
-                    .ToListAsync();
-
-                var newProducts = products
-                    .Where(p => !existingProducts.Any(ep =>
-                        ep.Name == p.Name &&
-                        ep.Price == p.Price))
-                    .ToList();
-
-                if (newProducts.Count > 0)
-                {
-                    await _context.Products.AddRangeAsync(newProducts);
-                    await _context.SaveChangesAsync();
-                    _logger.LogInformation("Добавлено {newProductsCount} новых товаров", newProducts.Count);
-                }
-                else
-                {
-                    _logger.LogInformation("Новых товаров не обнаружено");
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Ошибка при парсинге {ShopName}", ShopName);
-                throw;
-            }
-        }
     }
 }
