@@ -16,5 +16,6 @@ namespace Aggregator.ParserServices
         protected override string NameSelector => ".//div[contains(@class,'card__product-name')]";
         protected override string PriceSelector => ".//span[contains(@class,'card__price-final')]";
         protected override string ImageSelector => ".//img[contains(@class,'swiper-lazy')]";
+        protected override string ProductLinkSelector => ".//a[contains(@class,'card__product-name')]";
     }
 }

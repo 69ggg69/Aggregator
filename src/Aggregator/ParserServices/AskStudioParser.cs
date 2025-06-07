@@ -127,5 +127,16 @@ namespace Aggregator.ParserServices
         /// Метод ExtractImageUrl автоматически обрабатывает оба варианта.
         /// </remarks>
         protected override string ImageSelector => ".//span[contains(@class,'card-product__image')]";
+        
+        /// <summary>
+        /// Получает XPath селектор для извлечения ссылки на товар
+        /// </summary>
+        /// <value>.//a[contains(@class,'card-product__title')]</value>
+        /// <remarks>
+        /// Селектор использует тот же элемент, что и для названия товара.
+        /// Извлекается атрибут href для получения URL страницы товара.
+        /// Ссылки могут быть относительными и автоматически преобразуются в абсолютные.
+        /// </remarks>
+        protected override string ProductLinkSelector => ".//a[contains(@class,'card-product__title')]";
     }
 }

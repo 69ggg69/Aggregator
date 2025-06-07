@@ -91,6 +91,12 @@ namespace Aggregator.ParserServices
         protected abstract string ImageSelector { get; }
 
         /// <summary>
+        /// Получает XPath селектор для ссылки товара. Должен быть реализован в наследниках.
+        /// </summary>
+        /// <value>XPath селектор относительно контейнера товара для извлечения ссылки на товар</value>
+        protected abstract string ProductLinkSelector { get; }
+
+        /// <summary>
         /// Извлекает URL изображения из HTML узла товара
         /// </summary>
         /// <param name="node">HTML узел, содержащий информацию о товаре</param>
@@ -155,6 +161,45 @@ namespace Aggregator.ParserServices
         }
 
         /// <summary>
+        /// Извлекает ссылку на товар из HTML узла
+        /// </summary>
+        /// <param name="node">HTML узел, содержащий информацию о товаре</param>
+        /// <returns>Ссылка на страницу товара или null, если ссылка не найдена</returns>
+        /// <remarks>
+        /// Ищет ссылку в атрибуте href у элемента, найденного по ProductLinkSelector.
+        /// Автоматически преобразует относительные ссылки в абсолютные.
+        /// </remarks>
+        protected virtual string? ExtractProductLink(HtmlNode node)
+        {
+            var linkNode = node.SelectSingleNode(ProductLinkSelector);
+            if (linkNode == null) return null;
+
+            var href = linkNode.GetAttributeValue("href", "");
+            if (string.IsNullOrEmpty(href)) return null;
+
+            return NormalizeProductLink(href);
+        }
+
+        /// <summary>
+        /// Нормализует ссылку на товар, преобразуя относительные пути в абсолютные
+        /// </summary>
+        /// <param name="link">Исходная ссылка на товар</param>
+        /// <returns>Нормализованная абсолютная ссылка</returns>
+        protected virtual string NormalizeProductLink(string link)
+        {
+            if (string.IsNullOrEmpty(link)) return string.Empty;
+
+            // Если ссылка относительная, добавляем базовый домен
+            if (link.StartsWith('/'))
+            {
+                var baseUri = new Uri(BaseUrl);
+                return $"{baseUri.Scheme}://{baseUri.Host}{link}";
+            }
+
+            return link;
+        }
+
+        /// <summary>
         /// Парсит товары с веб-страницы магазина
         /// </summary>
         /// <returns>Список найденных товаров</returns>
@@ -208,6 +253,7 @@ namespace Aggregator.ParserServices
                         var name = node.SelectSingleNode(NameSelector)?.InnerText.Trim();
                         var price = node.SelectSingleNode(PriceSelector)?.InnerText.Trim();
                         var imageUrl = ExtractImageUrl(node);
+                        var productLink = ExtractProductLink(node);
 
                         if (!string.IsNullOrEmpty(name))
                         {
@@ -235,6 +281,7 @@ namespace Aggregator.ParserServices
                                     Shop = ShopName,
                                     ParseDate = DateTime.UtcNow,
                                     Price = price,
+                                    ProductLink = productLink,
                                     ImageUrl = imageUrl,
                                     LocalImagePath = localImagePath
                                 });

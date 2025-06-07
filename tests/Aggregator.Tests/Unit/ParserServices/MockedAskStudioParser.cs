@@ -30,7 +30,7 @@ public class MockedAskStudioParser(
     /// из тестовой директории TestData/HtmlPages/askstudio/
     /// </remarks>
     protected override string BaseUrl =>
-        $"file://{TestDataHelper.GetTestFilePath("HtmlPages/askstudio/main_shop_page.html")}";
+        $"file://{TestDataHelper.GetTestFilePath("HtmlPages/askstudio/shop_page_2.html")}";
 
 
     /// <summary>

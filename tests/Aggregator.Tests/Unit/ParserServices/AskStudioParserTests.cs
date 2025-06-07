@@ -53,16 +53,6 @@ public class AskStudioParserTests : IDisposable
     }
 
     [Fact]
-    public void MockedParser_ShouldHaveFileBasedUrl()
-    {
-        // Act
-        var fileBasedUrl = _mockedAskParser.GetBaseUrl();
-
-        // Assert
-        fileBasedUrl.Should().Be("file://" + TestDataHelper.GetTestFilePath("HtmlPages/askstudio/main_shop_page.html"));
-    }
-
-    [Fact]
     public void Parser_Selectors_ShouldHaveProductSelector()
     // TODO: add test for other selectors
     {

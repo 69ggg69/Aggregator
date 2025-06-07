@@ -51,6 +51,12 @@ public class ProductBuilder
         return this;
     }
 
+    public ProductBuilder WithProductLink(string link)
+    {
+        _product.ProductLink = link;
+        return this;
+    }
+
     public ProductBuilder WithId(int id)
     {
         _product.Id = id;
@@ -74,7 +80,8 @@ public class ProductBuilder
         .WithPrice("1000 РУБ")
         .WithShop("TestShop")
         .WithParseDate(DateTime.UtcNow)
-        .WithImageUrl("https://example.com/image.jpg");
+        .WithImageUrl("https://example.com/image.jpg")
+        .WithProductLink("https://example.com/product/1");
 
     // Создание списка товаров для тестов пагинации и массовых операций
     public static List<Product> CreateMultipleProducts(int count, string shopName = "TestShop")
