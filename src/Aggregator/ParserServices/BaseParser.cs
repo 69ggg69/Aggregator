@@ -15,8 +15,9 @@ using System.Threading.Tasks;
 namespace Aggregator.ParserServices
 {
     /// <summary>
-    /// Базовый абстрактный класс для парсеров интернет-магазинов.
-    /// Предоставляет общую логику для парсинга товаров с веб-сайтов.
+    /// Базовый класс для парсеров товаров с поддержкой двухэтапного парсинга
+    /// Этап 1: Базовый парсинг - название товара и ссылка на страницу
+    /// Этап 2: Детальный парсинг - описание, материал, варианты, изображения
     /// </summary>
     /// <remarks>
     /// Класс содержит общую логику для:
@@ -38,78 +39,227 @@ namespace Aggregator.ParserServices
         ILogger logger,
         ImageService imageService) : IParser
     {
+        #region Fields and Properties
 
         /// <summary>
-        /// Фабрика HTTP клиентов для выполнения веб-запросов
+        /// Фабрика HTTP-клиентов для сетевых запросов
         /// </summary>
         protected readonly IHttpClientFactory _clientFactory = clientFactory;
 
         /// <summary>
-        /// Логгер для записи информации о работе парсера
+        /// Логгер для записи событий парсинга
         /// </summary>
         protected readonly ILogger _logger = logger;
 
         /// <summary>
-        /// Сервис для загрузки и сохранения изображений товаров
+        /// Сервис для работы с изображениями
         /// </summary>
         protected readonly ImageService _imageService = imageService;
 
+        #endregion
+
+        #region Abstract Properties
+
         /// <summary>
-        /// Получает название магазина. Должно быть реализовано в наследниках.
+        /// Название магазина (должно быть реализовано в наследниках)
         /// </summary>
-        /// <value>Уникальное название магазина</value>
         public abstract string ShopName { get; }
 
         /// <summary>
-        /// Получает базовый URL для парсинга. Должен быть реализован в наследниках.
+        /// Базовый URL для парсинга списка товаров
         /// </summary>
-        /// <value>URL страницы с товарами для парсинга</value>
         protected abstract string BaseUrl { get; }
 
         /// <summary>
-        /// Получает XPath селектор для контейнеров товаров. Должен быть реализован в наследниках.
+        /// CSS селектор для поиска товаров на странице каталога
         /// </summary>
-        /// <value>XPath селектор, который выбирает все элементы товаров на странице</value>
         protected abstract string ProductSelector { get; }
 
         /// <summary>
-        /// Получает XPath селектор для названия товара. Должен быть реализован в наследниках.
+        /// CSS селектор для извлечения названия товара
         /// </summary>
-        /// <value>XPath селектор относительно контейнера товара для извлечения названия</value>
         protected abstract string NameSelector { get; }
 
         /// <summary>
-        /// Получает XPath селектор для цены товара. Должен быть реализован в наследниках.
+        /// CSS селектор для извлечения ссылки на товар
         /// </summary>
-        /// <value>XPath селектор относительно контейнера товара для извлечения цены</value>
-        protected abstract string PriceSelector { get; }
-
-        /// <summary>
-        /// Получает XPath селектор для изображения товара. Должен быть реализован в наследниках.
-        /// </summary>
-        /// <value>XPath селектор относительно контейнера товара для извлечения изображения</value>
-        protected abstract string ImageSelector { get; }
-
-        /// <summary>
-        /// Получает XPath селектор для ссылки товара. Должен быть реализован в наследниках.
-        /// </summary>
-        /// <value>XPath селектор относительно контейнера товара для извлечения ссылки на товар</value>
         protected abstract string ProductLinkSelector { get; }
 
+        #endregion
+
+        #region Optional Selectors (для старых парсеров)
+
         /// <summary>
-        /// Извлекает URL изображения из HTML узла товара
+        /// CSS селектор для извлечения цены (для обратной совместимости)
         /// </summary>
-        /// <param name="node">HTML узел, содержащий информацию о товаре</param>
-        /// <returns>URL изображения или пустая строка, если изображение не найдено</returns>
-        /// <remarks>
-        /// Метод пытается найти изображение в следующем порядке:
-        /// 1. Атрибут src у тега img
-        /// 2. URL из CSS background-image в атрибуте style
-        /// 
-        /// Поддерживает как абсолютные, так и относительные URL.
-        /// </remarks>
+        protected virtual string PriceSelector => "";
+
+        /// <summary>
+        /// CSS селектор для извлечения изображения (для обратной совместимости)
+        /// </summary>
+        protected virtual string ImageSelector => "";
+
+        #endregion
+
+        #region Two-Step Parsing Implementation
+
+        /// <summary>
+        /// Этап 1: Парсинг базовой информации о товарах
+        /// </summary>
+        public virtual async Task<List<Product>> ParseBasicProductsAsync()
+        {
+            var products = new List<Product>();
+            
+            try
+            {
+                var doc = await LoadHtmlDocumentAsync(BaseUrl);
+                var productNodes = doc.DocumentNode.SelectNodes(ProductSelector);
+
+                if (productNodes == null)
+                {
+                    _logger.LogWarning("Товары не найдены на странице {ShopName}", ShopName);
+                    return products;
+                }
+
+                foreach (var node in productNodes)
+                {
+                    var name = node.SelectSingleNode(NameSelector)?.InnerText?.Trim();
+                    var productLink = ExtractProductLink(node);
+
+                    if (!string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(productLink))
+                    {
+                        products.Add(new Product
+                        {
+                            Name = name,
+                            ProductUrl = productLink,
+                            ParsingStatus = ParsingStatus.BasicParsed,
+                            // ShopId will be set by the calling service
+                        });
+                    }
+                }
+
+                _logger.LogInformation("Найдено {count} товаров с базовой информацией для магазина {ShopName}", 
+                    products.Count, ShopName);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Ошибка при базовом парсинге магазина {ShopName}", ShopName);
+            }
+
+            return products;
+        }
+
+        /// <summary>
+        /// Этап 2: Парсинг детальной информации о товаре
+        /// </summary>
+        public virtual async Task<Product> ParseDetailedProductAsync(Product product)
+        {
+            if (string.IsNullOrEmpty(product.ProductUrl))
+            {
+                _logger.LogWarning("У товара {ProductName} отсутствует ссылка для детального парсинга", product.Name);
+                return product;
+            }
+
+            try
+            {
+                var doc = await LoadHtmlDocumentAsync(product.ProductUrl);
+                
+                // Парсим детальную информацию (переопределяется в наследниках)
+                await ParseProductDetailsAsync(product, doc);
+                
+                product.ParsingStatus = ParsingStatus.DetailedParsed;
+                product.UpdatedAt = DateTime.UtcNow;
+
+                _logger.LogInformation("Детально спаршен товар {ProductName} из магазина {ShopName}", 
+                    product.Name, ShopName);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Ошибка при детальном парсинге товара {ProductName} из магазина {ShopName}", 
+                    product.Name, ShopName);
+            }
+
+            return product;
+        }
+
+        /// <summary>
+        /// Переопределяемый метод для парсинга детальной информации о товаре
+        /// </summary>
+        protected virtual async Task ParseProductDetailsAsync(Product product, HtmlDocument doc)
+        {
+            // Базовая реализация - может быть переопределена в наследниках
+            
+            // Пример парсинга описания
+            var descriptionNode = doc.DocumentNode.SelectSingleNode("//meta[@name='description']");
+            if (descriptionNode != null)
+            {
+                product.Description = descriptionNode.GetAttributeValue("content", "")?.Trim();
+            }
+
+            // TODO: Добавить парсинг других полей (материал, варианты и т.д.)
+            // Это будет реализовано в конкретных парсерах
+            
+            await Task.CompletedTask; // Для async совместимости
+        }
+
+        #endregion
+
+        #region Backward Compatibility
+
+        /// <summary>
+        /// Устаревший метод для обратной совместимости
+        /// </summary>
+        [Obsolete("Используйте ParseBasicProductsAsync и ParseDetailedProductAsync")]
+        public virtual async Task<List<Product>> ParseProducts()
+        {
+            // Простая реализация для обратной совместимости
+            var basicProducts = await ParseBasicProductsAsync();
+            
+            // Для обратной совместимости возвращаем только базовую информацию
+            _logger.LogWarning("Используется устаревший метод ParseProducts() в парсере {ShopName}. " +
+                              "Рекомендуется перейти на двухэтапный парсинг.", ShopName);
+            
+            return basicProducts;
+        }
+
+        #endregion
+
+        #region Helper Methods
+
+        /// <summary>
+        /// Загружает HTML документ из URL или файла
+        /// </summary>
+        protected async Task<HtmlDocument> LoadHtmlDocumentAsync(string url)
+        {
+            var doc = new HtmlDocument();
+
+            if (url.StartsWith("http://") || url.StartsWith("https://"))
+            {
+                var web = new HtmlWeb();
+                doc = await web.LoadFromWebAsync(url);
+            }
+            else if (url.StartsWith("file://"))
+            {
+                var filePath = url.Replace("file://", "");
+                var html = await File.ReadAllTextAsync(filePath);
+                doc.LoadHtml(html);
+            }
+            else
+            {
+                var html = await File.ReadAllTextAsync(url);
+                doc.LoadHtml(html);
+            }
+
+            return doc;
+        }
+
+        /// <summary>
+        /// Извлекает URL изображения из HTML узла
+        /// </summary>
         protected virtual string? ExtractImageUrl(HtmlNode node)
         {
+            if (string.IsNullOrEmpty(ImageSelector)) return null;
+
             var imageNode = node.SelectSingleNode(ImageSelector);
             if (imageNode == null) return null;
 
@@ -127,7 +277,6 @@ namespace Aggregator.ParserServices
                 var urlMatch = System.Text.RegularExpressions.Regex.Match(style, @"url\(([^)]+)\)");
                 if (urlMatch.Success)
                 {
-                    // TODO: why [1] ?
                     var url = urlMatch.Groups[1].Value.Trim('"', '\'');
                     return NormalizeImageUrl(url);
                 }
@@ -137,20 +286,12 @@ namespace Aggregator.ParserServices
         }
 
         /// <summary>
-        /// Нормализует URL изображения, преобразуя относительные пути в абсолютные
+        /// Нормализует URL изображения
         /// </summary>
-        /// <param name="url">Исходный URL изображения</param>
-        /// <returns>Нормализованный абсолютный URL</returns>
-        /// <remarks>
-        /// Если URL начинается с "/", добавляется базовый домен сайта.
-        /// Абсолютные URL возвращаются без изменений.
-        /// </remarks>
         protected virtual string NormalizeImageUrl(string url)
-        // TODO: change in mocked class
         {
             if (string.IsNullOrEmpty(url)) return string.Empty;
 
-            // Если URL относительный, добавляем базовый домен
             if (url.StartsWith('/'))
             {
                 var baseUri = new Uri(BaseUrl);
@@ -163,12 +304,6 @@ namespace Aggregator.ParserServices
         /// <summary>
         /// Извлекает ссылку на товар из HTML узла
         /// </summary>
-        /// <param name="node">HTML узел, содержащий информацию о товаре</param>
-        /// <returns>Ссылка на страницу товара или null, если ссылка не найдена</returns>
-        /// <remarks>
-        /// Ищет ссылку в атрибуте href у элемента, найденного по ProductLinkSelector.
-        /// Автоматически преобразует относительные ссылки в абсолютные.
-        /// </remarks>
         protected virtual string? ExtractProductLink(HtmlNode node)
         {
             var linkNode = node.SelectSingleNode(ProductLinkSelector);
@@ -181,15 +316,12 @@ namespace Aggregator.ParserServices
         }
 
         /// <summary>
-        /// Нормализует ссылку на товар, преобразуя относительные пути в абсолютные
+        /// Нормализует ссылку на товар
         /// </summary>
-        /// <param name="link">Исходная ссылка на товар</param>
-        /// <returns>Нормализованная абсолютная ссылка</returns>
         protected virtual string NormalizeProductLink(string link)
         {
             if (string.IsNullOrEmpty(link)) return string.Empty;
 
-            // Если ссылка относительная, добавляем базовый домен
             if (link.StartsWith('/'))
             {
                 var baseUri = new Uri(BaseUrl);
@@ -199,116 +331,6 @@ namespace Aggregator.ParserServices
             return link;
         }
 
-        /// <summary>
-        /// Парсит товары с веб-страницы магазина
-        /// </summary>
-        /// <returns>Список найденных товаров</returns>
-        /// <exception cref="Exception">Выбрасывается при ошибках загрузки или парсинга страницы</exception>
-        /// <remarks>
-        /// Метод выполняет следующие действия:
-        /// 1. Загружает HTML страницу по BaseUrl
-        /// 2. Находит все элементы товаров используя ProductSelector
-        /// 3. Для каждого товара извлекает название, цену и изображение
-        /// 4. Загружает и сохраняет изображения через ImageService
-        /// 5. Исключает дубликаты товаров по комбинации "название + цена"
-        /// 6. Возвращает список уникальных товаров
-        /// 
-        /// В случае ошибки возвращает пустой список и логирует ошибку.
-        /// </remarks>
-        public async Task<List<Product>> ParseProducts()
-        {
-            var products = new List<Product>();
-            var doc = new HtmlDocument();
-
-            try
-            {
-                // Если URL - то загружаем из веба, если путь к файлу - то из файла
-                if (BaseUrl.StartsWith("http://") || BaseUrl.StartsWith("https://"))
-                {
-                    var web = new HtmlWeb();
-                    doc = await web.LoadFromWebAsync(BaseUrl);
-                }
-                else if (BaseUrl.StartsWith("file://"))
-                {
-                    // Убираем префикс file:// и загружаем локальный файл
-                    var filePath = BaseUrl.Replace("file://", "");
-                    var html = await File.ReadAllTextAsync(filePath);
-                    doc.LoadHtml(html);
-                }
-                else
-                {
-                    // Предполагаем что это путь к файлу
-                    var html = await File.ReadAllTextAsync(BaseUrl);
-                    doc.LoadHtml(html);
-                }
-
-                var productNodes = doc.DocumentNode.SelectNodes(ProductSelector);
-
-                var uniqueProducts = new HashSet<string>();
-
-                if (productNodes != null)
-                {
-                    foreach (var node in productNodes)
-                    {
-                        var name = node.SelectSingleNode(NameSelector)?.InnerText.Trim();
-                        var price = node.SelectSingleNode(PriceSelector)?.InnerText.Trim();
-                        var imageUrl = ExtractImageUrl(node);
-                        var productLink = ExtractProductLink(node);
-
-                        if (!string.IsNullOrEmpty(name))
-                        {
-                            price = price?
-                                .Replace("&nbsp;", " ")
-                                .Replace("РУБ", "")
-                                .Replace("руб", "")
-                                .Replace("₽", "")
-                                .Replace(" ", "");
-
-                            var productKey = $"{name}_{(string.IsNullOrEmpty(price) ? "PRICEERROR" : price)}";
-
-                            if (uniqueProducts.Add(productKey))
-                            {
-                                // Загружаем и сохраняем изображение
-                                string? localImagePath = null;
-                                if (!string.IsNullOrEmpty(imageUrl))
-                                {
-                                    localImagePath = await _imageService.DownloadAndSaveImageAsync(imageUrl, ShopName);
-                                }
-
-                                products.Add(new Product
-                                {
-                                    Name = name,
-                                    Shop = ShopName,
-                                    ParseDate = DateTime.UtcNow,
-                                    Price = price,
-                                    ProductLink = productLink,
-                                    ImageUrl = imageUrl,
-                                    LocalImagePath = localImagePath
-                                });
-                            }
-                            else
-                            {
-                                _logger.LogInformation("Пропущен дубликат товара: {name} - {price}", name, price);
-                            }
-                        }
-                    }
-                }
-
-                _logger.LogInformation("Найдено {productsCount} уникальных товаров из {productNodesCount} элементов", products.Count, productNodes?.Count ?? 0);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Ошибка при загрузке страницы {ShopName}", ShopName);
-                if (ex.InnerException != null)
-                {
-                    _logger.LogError(ex.InnerException, "Внутренняя ошибка");
-                }
-                return [];
-            }
-
-            return products;
-        }
-
-
+        #endregion
     }
 }

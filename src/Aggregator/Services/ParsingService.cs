@@ -56,10 +56,10 @@ public class ParsingService
             // 2. Получаем существующие товары из БД
             var existingProducts = await _databaseService.Products.GetProductsByShopAsync(parser.ShopName);
 
-            // 3. Фильтруем новые товары (избегаем дубликатов)
+            // 3. Фильтруем новые товары (избегаем дубликатов по имени)
+            // TODO: В новой архитектуре нужно будет сравнивать по ProductVariants
             var newProducts = parsedProducts
-                .Where(p => !existingProducts.Any(ep =>
-                    ep.Name == p.Name && ep.Price == p.Price))
+                .Where(p => !existingProducts.Any(ep => ep.Name == p.Name))
                 .ToList();
 
             _logger.LogInformation("🆕 Найдено {newCount} новых товаров из {totalCount} для магазина {shopName}",

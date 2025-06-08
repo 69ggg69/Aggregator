@@ -55,17 +55,18 @@ namespace Aggregator.Services.Application
             {
                 var totalProducts = await _dbContext.Products.CountAsync();
                 var lastParseDate = await _dbContext.Products
-                    .OrderByDescending(p => p.ParseDate)
-                    .Select(p => (DateTime?)p.ParseDate)
+                    .OrderByDescending(p => p.CreatedAt)
+                    .Select(p => (DateTime?)p.CreatedAt)
                     .FirstOrDefaultAsync();
 
                 var productsByShop = await _dbContext.Products
-                    .GroupBy(p => p.Shop)
+                    .Include(p => p.Shop)
+                    .GroupBy(p => p.Shop.Name)
                     .Select(g => new ShopStatistics 
                     { 
                         ShopName = g.Key, 
                         ProductCount = g.Count(),
-                        LastUpdate = g.Max(p => p.ParseDate)
+                        LastUpdate = g.Max(p => p.CreatedAt)
                     })
                     .ToListAsync();
 
@@ -89,7 +90,9 @@ namespace Aggregator.Services.Application
         private async Task DisplayParsingResultsAsync()
         {
             var allProducts = await _dbContext.Products
-                .OrderByDescending(p => p.ParseDate)
+                .Include(p => p.Shop)
+                .Include(p => p.ProductVariants)
+                .OrderByDescending(p => p.CreatedAt)
                 .ToListAsync();
 
             _logger.LogInformation("Парсинг завершен. Найдено товаров: {ProductCount}", allProducts.Count);
@@ -105,10 +108,10 @@ namespace Aggregator.Services.Application
             {
                 foreach (var product in allProducts)
                 {
-                    var imageInfo = !string.IsNullOrEmpty(product.LocalImagePath) 
-                        ? $" [Изображение сохранено: {product.LocalImagePath}]" 
-                        : " [Без изображения]";
-                    Console.WriteLine($"{product.Shop} - {product.Name}: {product.Price}{imageInfo} (спаршено: {product.ParseDate})");
+                    var variantInfo = product.ProductVariants.Count != 0
+                        ? $" ({product.ProductVariants.Count} вариантов)" 
+                        : " [Без вариантов]";
+                    Console.WriteLine($"{product.Shop.Name} - {product.Name}{variantInfo} (создан: {product.CreatedAt:dd.MM.yyyy HH:mm})");
                 }
             }
         }

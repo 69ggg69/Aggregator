@@ -5,8 +5,7 @@ using Aggregator.Models;
 namespace Aggregator.Interfaces
 {
     /// <summary>
-    /// Интерфейс парсера товаров с веб-сайтов
-    /// Отвечает только за извлечение данных, без работы с БД
+    /// Интерфейс парсера для двухэтапного парсинга товаров
     /// </summary>
     public interface IParser
     {
@@ -16,10 +15,25 @@ namespace Aggregator.Interfaces
         string ShopName { get; }
         
         /// <summary>
-        /// Парсит товары с сайта и возвращает их список
-        /// НЕ сохраняет в базу данных
+        /// Этап 1: Парсинг базовой информации о товарах
+        /// Извлекает название товара и ссылку на страницу товара
         /// </summary>
-        /// <returns>Список распарсенных товаров</returns>
+        /// <returns>Список товаров с базовой информацией</returns>
+        Task<List<Product>> ParseBasicProductsAsync();
+
+        /// <summary>
+        /// Этап 2: Парсинг детальной информации о конкретном товаре
+        /// Извлекает описание, материал, варианты, изображения и другую детальную информацию
+        /// </summary>
+        /// <param name="product">Товар с базовой информацией и ссылкой</param>
+        /// <returns>Обновленный товар с детальной информацией</returns>
+        Task<Product> ParseDetailedProductAsync(Product product);
+
+        /// <summary>
+        /// Устаревший метод для обратной совместимости
+        /// TODO: Удалить после перехода на двухэтапный парсинг
+        /// </summary>
+        [Obsolete("Используйте ParseBasicProductsAsync и ParseDetailedProductAsync")]
         Task<List<Product>> ParseProducts();
     }
 }

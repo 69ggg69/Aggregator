@@ -6,6 +6,7 @@ using Microsoft.Extensions.Configuration;
 using System.Net.Http;
 using System.Net;
 using Aggregator.Data;
+using Aggregator.Models;
 using Aggregator.Services;
 using Aggregator.ParserServices;
 using Aggregator.Interfaces;
@@ -27,6 +28,15 @@ namespace Aggregator
                 logger.LogInformation("Среда выполнения: {Environment}", 
                     Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Production");
                 logger.LogInformation("Время запуска: {StartTime}", DateTime.Now);
+                
+                // Initialize seed data
+                using (var scope = host.Services.CreateScope())
+                {
+                    var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                    logger.LogInformation("🌱 Инициализация базовых данных...");
+                    await SeedData.InitializeAsync(context);
+                    logger.LogInformation("✅ Базовые данные инициализированы");
+                }
                 
                 Console.WriteLine("✅ Приложение Aggregator успешно инициализировано");
                 
@@ -58,6 +68,7 @@ namespace Aggregator
                 Console.WriteLine("1. Запустить парсинг");
                 Console.WriteLine("2. Проверить подключение к БД");
                 Console.WriteLine("3. Показать статистику");
+                Console.WriteLine("4. Создать пример товара");
                 Console.WriteLine("0. Выход");
                 Console.Write("Выберите действие: ");
 
@@ -77,6 +88,10 @@ namespace Aggregator
                     case "3":
                         logger.LogInformation("📊 Пользователь запросил статистику");
                         await ShowStatisticsAsync(host, logger);
+                        break;
+                    case "4":
+                        logger.LogInformation("🛍️ Пользователь запросил создание примера товара");
+                        await CreateSampleProductAsync(host, logger);
                         break;
                     case "0":
                         logger.LogInformation("🚪 Пользователь выбрал выход из программы");
@@ -208,6 +223,117 @@ namespace Aggregator
             {
                 logger.LogError(ex, "❌ Ошибка при получении статистики");
                 Console.WriteLine($"❌ Ошибка получения статистики: {ex.Message}");
+            }
+        }
+
+        static async Task CreateSampleProductAsync(IHost host, ILogger logger)
+        {
+            logger.LogInformation("🛍️ Создание примера товара с новой архитектурой БД");
+            
+            try
+            {
+                using var scope = host.Services.CreateScope();
+                var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                
+                Console.WriteLine("🔄 Создаем пример товара...");
+                
+                // Get lookup data
+                var shop = await context.Shops.FirstAsync(s => s.Name == "MyShop");
+                var material = await context.Materials.FirstAsync(m => m.Name == "Пух/Перо");
+                var blackColor = await context.Colors.FirstAsync(c => c.Name == "Чёрный");
+                var blueColor = await context.Colors.FirstAsync(c => c.Name == "Синий");
+                var sizeM = await context.Sizes.FirstAsync(s => s.Name == "M");
+                var sizeL = await context.Sizes.FirstAsync(s => s.Name == "L");
+                var puffersCategory = await context.Categories.FirstAsync(c => c.Name == "Пуховики");
+                var lightTag = await context.Tags.FirstAsync(t => t.Name == "Лёгкий");
+                var waterproofTag = await context.Tags.FirstAsync(t => t.Name == "Водонепроницаемый");
+
+                // Create product
+                var product = new Product
+                {
+                    Name = "Пуховик зимний Premium",
+                    Description = "Лёгкий водонепроницаемый пуховик для суровых зим. Отличный выбор для активного отдыха.",
+                    Audience = ProductAudience.Unisex,
+                    ShopId = shop.Id,
+                    MaterialId = material.Id
+                };
+
+                context.Products.Add(product);
+                await context.SaveChangesAsync();
+
+                // Link to categories (only the most specific one)
+                var productCategory = new ProductCategory 
+                { 
+                    ProductId = product.Id, 
+                    CategoryId = puffersCategory.Id 
+                };
+                
+                context.ProductCategories.Add(productCategory);
+
+                // Link to tags
+                var productTags = new[]
+                {
+                    new ProductTag { ProductId = product.Id, TagId = lightTag.Id },
+                    new ProductTag { ProductId = product.Id, TagId = waterproofTag.Id }
+                };
+                
+                context.ProductTags.AddRange(productTags);
+
+                // Create variants
+                var variants = new[]
+                {
+                    new ProductVariant
+                    {
+                        ProductId = product.Id,
+                        ColorId = blackColor.Id,
+                        SizeId = sizeM.Id,
+                        Sku = "JKT-BLK-M",
+                        Price = 199.99m
+                    },
+                    new ProductVariant
+                    {
+                        ProductId = product.Id,
+                        ColorId = blueColor.Id,
+                        SizeId = sizeL.Id,
+                        Sku = "JKT-BLU-L",
+                        Price = 199.99m
+                    }
+                };
+
+                context.ProductVariants.AddRange(variants);
+                await context.SaveChangesAsync();
+
+                // Create availability records
+                foreach (var variant in variants)
+                {
+                    var availability = new Availability
+                    {
+                        VariantId = variant.Id,
+                        Quantity = 10,
+                        IsAvailable = true
+                    };
+                    context.Availabilities.Add(availability);
+                }
+
+                await context.SaveChangesAsync();
+
+                Console.WriteLine("✅ Пример товара успешно создан!");
+                Console.WriteLine($"   Товар: {product.Name}");
+                Console.WriteLine($"   Магазин: {shop.Name} ({shop.Url})");
+                Console.WriteLine($"   Материал: {material.Name}");
+                Console.WriteLine($"   Категория: {puffersCategory.Name}");
+                Console.WriteLine($"   Теги: {string.Join(", ", new[] { lightTag.Name, waterproofTag.Name })}");
+                Console.WriteLine($"   Варианты: {variants.Length}");
+                Console.WriteLine($"     - {blackColor.Name} {sizeM.Name}: ${variants[0].Price}");
+                Console.WriteLine($"     - {blueColor.Name} {sizeL.Name}: ${variants[1].Price}");
+                
+                logger.LogInformation("✅ Пример товара создан: {ProductName}, варианты: {VariantsCount}", 
+                    product.Name, variants.Length);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "❌ Ошибка при создании примера товара");
+                Console.WriteLine($"❌ Ошибка создания товара: {ex.Message}");
             }
         }
 

@@ -23,7 +23,8 @@ public class ProductRepository(ApplicationDbContext context, ILogger<ProductRepo
         try
         {
             var products = await _context.Products
-                .Where(p => p.Shop == shopName)
+                .Include(p => p.Shop)
+                .Where(p => p.Shop.Name == shopName)
                 .ToListAsync();
 
             _logger.LogDebug("Найдено {count} товаров для магазина {shopName}",
@@ -65,16 +66,16 @@ public class ProductRepository(ApplicationDbContext context, ILogger<ProductRepo
     }
 
     /// <summary>
-    /// Проверяет существует ли товар с таким названием и ценой
+    /// Проверяет существует ли товар с таким названием
+    /// TODO: В новой архитектуре нужно проверять варианты товара с ценами
     /// </summary>
-    public async Task<bool> ProductExistsAsync(string shopName, string productName, string? price)
+    public async Task<bool> ProductExistsAsync(string shopName, string productName, string? price = null)
     {
         try
         {
             return await _context.Products
-                .AnyAsync(p => p.Shop == shopName
-                    && p.Name == productName
-                    && p.Price == price);
+                .Include(p => p.Shop)
+                .AnyAsync(p => p.Shop.Name == shopName && p.Name == productName);
         }
         catch (Exception ex)
         {
@@ -92,12 +93,13 @@ public class ProductRepository(ApplicationDbContext context, ILogger<ProductRepo
         try
         {
             var statistics = await _context.Products
-                .GroupBy(p => p.Shop)
+                .Include(p => p.Shop)
+                .GroupBy(p => p.Shop.Name)
                 .Select(g => new ShopStatistics
                 {
                     ShopName = g.Key,
                     ProductCount = g.Count(),
-                    LastUpdate = g.Max(p => p.ParseDate)
+                    LastUpdate = g.Max(p => p.CreatedAt)
                 })
                 .ToListAsync();
 

@@ -7,12 +7,24 @@ config:
       theme: neutral
 ---
 erDiagram
+    SHOPS {
+        INTEGER id PK "Уникальный идентификатор магазина"
+        VARCHAR name "Название магазина"
+        VARCHAR url "URL магазина"
+        TEXT description "Описание магазина"
+        TIMESTAMP created_at "Дата добавления"
+        TIMESTAMP updated_at "Дата последнего обновления"
+    }
+
     PRODUCTS {
         INTEGER id PK "Уникальный идентификатор товара"
         VARCHAR name "Название товара"
-        TEXT description "Описание товара"
-        ENUM audience "Мужское/Женское/Детское/Унисекс"
-        VARCHAR material FK "Материал (FK → materials.id)"
+        TEXT description "Описание товара (NULL до детального парсинга)"
+        ENUM audience "Мужское/Женское/Детское/Унисекс (NULL до детального парсинга)"
+        INTEGER shop_id FK "Магазин (FK → shops.id)"
+        VARCHAR material FK "Материал (FK → materials.id, NULL до детального парсинга)"
+        VARCHAR product_url "Ссылка на страницу товара для детального парсинга"
+        ENUM parsing_status "Статус парсинга: NotParsed, BasicParsed, DetailedParsed"
         TIMESTAMP created_at "Дата добавления"
         TIMESTAMP updated_at "Дата последнего обновления"
     }
@@ -94,12 +106,19 @@ erDiagram
     PRODUCT_VARIANTS ||--o{ IMAGES : shows
     PRODUCT_VARIANTS ||--o{ AVAILABILITY : tracks
     MATERIALS ||--o{ PRODUCTS : defines
+    SHOPS ||--o{ PRODUCTS : sells
 
 ```
 
 ## Пример записи
 
-В products создаём «Пуховик зимний» (audience = Unisex, material = «пух/перо», season = Winter, style = «Casual»).
+**Этап 1 - Базовый парсинг:**
+В shops создаём магазин «MyShop» (url = "https://myshop.com").
+В products создаём «Пуховик зимний» (name = "Пуховик зимний", shop_id = MyShop.id, product_url = "https://myshop.com/jackets/winter-jacket", parsing_status = BasicParsed).
+Поля description, audience, material остаются NULL.
+
+**Этап 2 - Детальный парсинг:**
+Обновляем запись: description = "Тёплый зимний пуховик", audience = Unisex, material = «пух/перо», parsing_status = DetailedParsed.
 Через product_categories связываем его с категориями «Верхняя одежда» → «Пуховики».
 Через product_tags добавляем теги «Лёгкий», «Водонепроницаемый».
 В product_variants создаём варианты:

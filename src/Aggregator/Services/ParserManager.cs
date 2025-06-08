@@ -27,8 +27,9 @@ namespace Aggregator.Services
                     await parser.ParseProducts();
                     
                     var todayProducts = await _context.Products
-                        .Where(p => p.Shop == parser.ShopName && 
-                               p.ParseDate.Date == DateTime.UtcNow.Date)
+                        .Include(p => p.Shop)
+                        .Where(p => p.Shop.Name == parser.ShopName && 
+                               p.CreatedAt.Date == DateTime.UtcNow.Date)
                         .ToListAsync();
 
                     
