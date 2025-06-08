@@ -13,21 +13,14 @@ namespace Aggregator.Services;
 /// Сервис для управления всеми операциями с базой данных
 /// Координирует работу репозиториев и управляет соединениями
 /// </summary>
-public class DatabaseService : IDatabaseService
+public class DatabaseService(
+    ApplicationDbContext context,
+    IProductRepository productRepository,
+    ILogger<DatabaseService> logger) : IDatabaseService
 {
-    private readonly ApplicationDbContext _context;
-    private readonly IProductRepository _productRepository;
-    private readonly ILogger<DatabaseService> _logger;
-
-    public DatabaseService(
-        ApplicationDbContext context,
-        IProductRepository productRepository,
-        ILogger<DatabaseService> logger)
-    {
-        _context = context;
-        _productRepository = productRepository;
-        _logger = logger;
-    }
+    private readonly ApplicationDbContext _context = context;
+    private readonly IProductRepository _productRepository = productRepository;
+    private readonly ILogger<DatabaseService> _logger = logger;
 
     /// <summary>
     /// Репозиторий для работы с товарами
@@ -230,7 +223,18 @@ public class DatabaseService : IDatabaseService
             
             // Для PostgreSQL можно использовать pg_dump
             // Здесь простая реализация - экспорт в JSON
-            var products = await _context.Products.ToListAsync();
+            var products = await _context.Products
+                .Include(p => p.Shop)
+                .Include(p => p.Material)
+                .Include(p => p.ProductVariants)
+                    .ThenInclude(pv => pv.Color)
+                .Include(p => p.ProductVariants)
+                    .ThenInclude(pv => pv.Size)
+                .Include(p => p.ProductCategories)
+                    .ThenInclude(pc => pc.Category)
+                .Include(p => p.ProductTags)
+                    .ThenInclude(pt => pt.Tag)
+                .ToListAsync();
             
             var backupData = new
             {
@@ -240,11 +244,23 @@ public class DatabaseService : IDatabaseService
                 {
                     p.Id,
                     p.Name,
-                    p.Price,
-                    p.Shop,
-                    p.ParseDate,
-                    p.ImageUrl,
-                    p.LocalImagePath
+                    p.Description,
+                    p.Audience,
+                    p.ProductUrl,
+                    p.ParsingStatus,
+                    Shop = p.Shop.Name,
+                    Material = p.Material?.Name,
+                    p.CreatedAt,
+                    p.UpdatedAt,
+                    Variants = p.ProductVariants.Select(pv => new
+                    {
+                        pv.Sku,
+                        pv.Price,
+                        Color = pv.Color.Name,
+                        Size = pv.Size.Name
+                    }),
+                    Categories = p.Categories.Select(c => c.Name),
+                    Tags = p.Tags.Select(t => t.Name)
                 })
             };
 
@@ -255,10 +271,12 @@ public class DatabaseService : IDatabaseService
 
             await File.WriteAllTextAsync(backupPath, json);
             
-            _logger.LogInformation("✅ Резервная копия создана: {backupPath}, товаров: {count}", 
-                backupPath, products.Count);
+            var totalVariants = products.Sum(p => p.ProductVariants.Count);
             
-            Log.Success($"Резервная копия создана ({products.Count} товаров)");
+            _logger.LogInformation("✅ Резервная копия создана: {backupPath}, товаров: {count}, вариантов: {variants}", 
+                backupPath, products.Count, totalVariants);
+            
+            Log.Success($"Резервная копия создана ({products.Count} товаров, {totalVariants} вариантов)");
             return true;
         }
         catch (Exception ex)

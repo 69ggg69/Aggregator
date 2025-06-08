@@ -81,7 +81,7 @@ namespace Aggregator.Models
         /// <summary>
         /// Идентификатор материала (заполняется на этапе детального парсинга)
         /// </summary>
-        public string? MaterialId { get; set; }
+        public int? MaterialId { get; set; }
 
         /// <summary>
         /// Материал товара (заполняется на этапе детального парсинга)

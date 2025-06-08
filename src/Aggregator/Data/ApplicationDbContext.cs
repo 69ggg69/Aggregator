@@ -5,12 +5,8 @@ using System.IO;
 
 namespace Aggregator.Data
 {
-    public class ApplicationDbContext : DbContext
+    public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : DbContext(options)
     {
-        public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
-            : base(options)
-        {
-        }
 
         // DbSets for all entities
         public DbSet<Product> Products { get; set; }

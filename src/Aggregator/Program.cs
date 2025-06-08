@@ -40,8 +40,11 @@ namespace Aggregator
                 
                 Console.WriteLine("✅ Приложение Aggregator успешно инициализировано");
                 
+                // ВРЕМЕННО: Тестируем новый ShopParser вместо обычного меню
+                await TestNewShopParserAsync(host, logger);
+                
                 // Показываем простое меню (временно, пока не добавим API)
-                await ShowMainMenuAsync(host, logger);
+                // await ShowMainMenuAsync(host, logger);
                 
                 logger.LogInformation("👋 Завершение работы приложения");
                 logger.LogInformation("Время остановки: {StopTime}", DateTime.Now);
@@ -334,6 +337,83 @@ namespace Aggregator
             {
                 logger.LogError(ex, "❌ Ошибка при создании примера товара");
                 Console.WriteLine($"❌ Ошибка создания товара: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// ВРЕМЕННАЯ функция для тестирования нового ShopParser
+        /// </summary>
+        static async Task TestNewShopParserAsync(IHost host, ILogger logger)
+        {
+            logger.LogInformation("🧪 ТЕСТ: Запуск нового ShopParser для AskStudio");
+            
+            try
+            {
+                using var scope = host.Services.CreateScope();
+                var clientFactory = scope.ServiceProvider.GetRequiredService<IHttpClientFactory>();
+                var parserLogger = scope.ServiceProvider.GetRequiredService<ILogger<AskStudioShopParser>>();
+                
+                // Создаем экземпляр нашего нового парсера
+                var parser = new AskStudioShopParser(clientFactory, parserLogger);
+                
+                Console.WriteLine($"🔄 Тестируем парсер для магазина: {parser.ShopName}");
+                Console.WriteLine($"📋 Конфигурация URL:");
+                
+                foreach (var config in parser.BaseUrls)
+                {
+                    Console.WriteLine($"   URL: {config.BaseUrl}");
+                    Console.WriteLine($"   Правила пагинации: {(config.PaginationRules.Length == 0 ? "Нет" : string.Join(", ", config.PaginationRules))}");
+                }
+                
+                Console.WriteLine();
+                Console.WriteLine("🚀 Запускаем парсинг базовой информации о товарах...");
+                
+                var startTime = DateTime.Now;
+                var products = await parser.ParseBasicProductsAsync();
+                var duration = DateTime.Now - startTime;
+                
+                Console.WriteLine();
+                Console.WriteLine($"✅ Парсинг завершен за {duration.TotalSeconds:F2} секунд");
+                Console.WriteLine($"📊 Результаты:");
+                Console.WriteLine($"   Найдено товаров: {products.Count}");
+                
+                if (products.Count > 0)
+                {
+                    Console.WriteLine($"   Примеры найденных товаров:");
+                    
+                    var samplesToShow = Math.Min(5, products.Count);
+                    for (int i = 0; i < samplesToShow; i++)
+                    {
+                        var product = products[i];
+                        Console.WriteLine($"     {i + 1}. {product.Name}");
+                        Console.WriteLine($"        URL: {product.ProductUrl}");
+                        Console.WriteLine($"        Статус: {product.ParsingStatus}");
+                        Console.WriteLine();
+                    }
+                    
+                    if (products.Count > samplesToShow)
+                    {
+                        Console.WriteLine($"     ... и еще {products.Count - samplesToShow} товаров");
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("❌ Товары не найдены. Возможно, нужно откорректировать селекторы.");
+                    Console.WriteLine("💡 Проверьте HTML структуру сайта и обновите селекторы в AskStudioShopParser");
+                }
+                
+                logger.LogInformation("🧪 ТЕСТ завершен: найдено {ProductCount} товаров за {Duration}ms", 
+                    products.Count, duration.TotalMilliseconds);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "❌ Ошибка при тестировании нового ShopParser");
+                Console.WriteLine($"❌ Ошибка тестирования: {ex.Message}");
+                
+                if (ex.InnerException != null)
+                {
+                    Console.WriteLine($"   Внутренняя ошибка: {ex.InnerException.Message}");
+                }
             }
         }
 

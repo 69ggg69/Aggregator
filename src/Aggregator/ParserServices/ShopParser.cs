@@ -1,0 +1,336 @@
+using Aggregator.Models;
+using HtmlAgilityPack;
+using Microsoft.Extensions.Logging;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Net.Http;
+using System.Threading.Tasks;
+
+namespace Aggregator.ParserServices
+{
+    /// <summary>
+    /// Базовый класс для парсинга основной информации о товарах из каталогов магазинов
+    /// Реализует первый этап двухступенчатого парсинга - извлечение названий товаров и ссылок
+    /// </summary>
+    /// <remarks>
+    /// Класс предназначен для:
+    /// - Парсинга каталогных страниц магазинов
+    /// - Извлечения базовой информации о товарах (название и ссылка)
+    /// - Поддержки пагинации и множественных базовых URL
+    /// - Обработки различных правил навигации по страницам
+    /// 
+    /// Наследники должны определить специфичные для магазина селекторы, URL и правила пагинации.
+    /// </remarks>
+    /// <remarks>
+    /// Инициализирует новый экземпляр парсера магазина
+    /// </remarks>
+    /// <param name="clientFactory">Фабрика HTTP клиентов</param>
+    /// <param name="logger">Логгер</param>
+    public abstract class ShopParser(IHttpClientFactory clientFactory, ILogger logger)
+    {
+        #region Fields and Properties
+
+        /// <summary>
+        /// Фабрика HTTP-клиентов для сетевых запросов
+        /// </summary>
+        protected readonly IHttpClientFactory _clientFactory = clientFactory ?? throw new ArgumentNullException(nameof(clientFactory));
+
+        /// <summary>
+        /// Логгер для записи событий парсинга
+        /// </summary>
+        protected readonly ILogger _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+
+        #endregion
+        #region Constructor
+
+        #endregion
+
+        #region Abstract Properties
+
+        /// <summary>
+        /// Название магазина
+        /// </summary>
+        public abstract string ShopName { get; }
+
+        /// <summary>
+        /// Массив базовых URL для парсинга с правилами навигации по страницам
+        /// Каждый элемент содержит URL и массив правил пагинации
+        /// </summary>
+        public abstract ShopUrlConfig[] BaseUrls { get; }
+
+        /// <summary>
+        /// CSS селектор для поиска товаров на странице каталога
+        /// </summary>
+        protected abstract string ProductSelector { get; }
+
+        /// <summary>
+        /// CSS селектор для извлечения названия товара
+        /// </summary>
+        protected abstract string ProductNameSelector { get; }
+
+        /// <summary>
+        /// CSS селектор для извлечения ссылки на товар
+        /// </summary>
+        protected abstract string ProductLinkSelector { get; }
+
+        #endregion
+
+        #region Public Methods
+
+        /// <summary>
+        /// Парсит основную информацию о товарах из всех настроенных URL магазина
+        /// </summary>
+        /// <returns>Список товаров с базовой информацией</returns>
+        public virtual async Task<List<Product>> ParseBasicProductsAsync()
+        {
+            var allProducts = new List<Product>();
+
+            foreach (var urlConfig in BaseUrls)
+            {
+                try
+                {
+                    var productsFromUrl = await ParseProductsFromUrlConfigAsync(urlConfig);
+                    allProducts.AddRange(productsFromUrl);
+                    
+                    _logger.LogInformation("Получено {count} товаров с URL: {url} для магазина {shopName}", 
+                        productsFromUrl.Count, urlConfig.BaseUrl, ShopName);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Ошибка при парсинге URL: {url} для магазина {shopName}", 
+                        urlConfig.BaseUrl, ShopName);
+                }
+            }
+
+            _logger.LogInformation("Всего найдено {totalCount} товаров для магазина {shopName}", 
+                allProducts.Count, ShopName);
+
+            return allProducts;
+        }
+
+        #endregion
+
+        #region Protected Methods
+
+        /// <summary>
+        /// Парсит товары из одной конфигурации URL с учетом правил пагинации
+        /// </summary>
+        /// <param name="urlConfig">Конфигурация URL с правилами пагинации</param>
+        /// <returns>Список товаров</returns>
+        protected virtual async Task<List<Product>> ParseProductsFromUrlConfigAsync(ShopUrlConfig urlConfig)
+        {
+            var products = new List<Product>();
+            var currentUrl = urlConfig.BaseUrl;
+            var pageNumber = 1;
+
+            do
+            {
+                try
+                {
+                    var doc = await LoadHtmlDocumentAsync(currentUrl);
+                    var pageProducts = await ParseProductsFromPageAsync(doc);
+                    
+                    if (pageProducts.Count == 0)
+                    {
+                        _logger.LogInformation("На странице {pageNumber} не найдено товаров. Завершение парсинга URL: {url}", 
+                            pageNumber, currentUrl);
+                        break;
+                    }
+
+                    products.AddRange(pageProducts);
+                    _logger.LogDebug("Страница {pageNumber}: найдено {count} товаров", pageNumber, pageProducts.Count);
+
+                    // Получаем следующий URL для пагинации
+                    currentUrl = GetNextPageUrl(urlConfig, pageNumber);
+                    pageNumber++;
+
+                    // Проверяем, нужно ли продолжать пагинацию
+                    if (string.IsNullOrEmpty(currentUrl) || !ShouldContinuePagination(urlConfig, pageNumber))
+                    {
+                        break;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Ошибка при парсинге страницы {pageNumber} для URL: {url}", 
+                        pageNumber, currentUrl);
+                }
+            }
+            while (true);
+
+            return products;
+        }
+
+        /// <summary>
+        /// Парсит товары с одной HTML страницы
+        /// </summary>
+        /// <param name="doc">HTML документ страницы</param>
+        /// <returns>Список товаров со страницы</returns>
+        protected virtual async Task<List<Product>> ParseProductsFromPageAsync(HtmlDocument doc)
+        {
+            var products = new List<Product>();
+            var productNodes = doc.DocumentNode.SelectNodes(ProductSelector);
+
+            if (productNodes == null || productNodes.Count == 0)
+            {
+                return products;
+            }
+
+            foreach (var node in productNodes)
+            {
+                try
+                {
+                    var name = ExtractProductName(node);
+                    var productLink = ExtractProductLink(node);
+
+                    if (!string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(productLink))
+                    {
+                        products.Add(new Product
+                        {
+                            Name = name,
+                            ProductUrl = productLink,
+                            ParsingStatus = ParsingStatus.BasicParsed,
+                            CreatedAt = DateTime.UtcNow,
+                            UpdatedAt = DateTime.UtcNow
+                        });
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Ошибка при парсинге товара из узла HTML");
+                    break;
+                }
+            
+            }
+
+            await Task.CompletedTask; // Для async совместимости
+            return products;
+        }
+
+        /// <summary>
+        /// Извлекает название товара из HTML узла
+        /// </summary>
+        /// <param name="node">HTML узел товара</param>
+        /// <returns>Название товара</returns>
+        protected virtual string? ExtractProductName(HtmlNode node)
+        {
+            var nameNode = node.SelectSingleNode(ProductNameSelector);
+            _logger.LogDebug("Найдено название товара с селектором {Selector}: {ProductName}", ProductNameSelector, nameNode?.InnerText?.Trim());
+            return nameNode?.InnerText?.Trim();
+        }
+
+        /// <summary>
+        /// Извлекает ссылку на товар из HTML узла
+        /// </summary>
+        /// <param name="node">HTML узел товара</param>
+        /// <returns>Ссылка на товар</returns>
+        protected virtual string? ExtractProductLink(HtmlNode node)
+        {
+            var linkNode = node.SelectSingleNode(ProductLinkSelector);
+            if (linkNode == null) return null;
+
+            var href = linkNode.GetAttributeValue("href", "");
+            if (string.IsNullOrEmpty(href)) return null;
+
+            return NormalizeProductLink(href);
+        }
+
+        /// <summary>
+        /// Нормализует ссылку на товар (делает абсолютной, если она относительная)
+        /// </summary>
+        /// <param name="link">Исходная ссылка</param>
+        /// <returns>Нормализованная ссылка</returns>
+        protected virtual string NormalizeProductLink(string link)
+        {
+            if (string.IsNullOrEmpty(link)) return string.Empty;
+
+            if (link.StartsWith('/'))
+            {
+                // Для относительных ссылок используем первый базовый URL для определения домена
+                var baseUrl = BaseUrls.FirstOrDefault()?.BaseUrl;
+                if (!string.IsNullOrEmpty(baseUrl))
+                {
+                    var baseUri = new Uri(baseUrl);
+                    return $"{baseUri.Scheme}://{baseUri.Host}{link}";
+                }
+            }
+
+            return link;
+        }
+
+        /// <summary>
+        /// Загружает HTML документ из URL
+        /// </summary>
+        /// <param name="url">URL для загрузки</param>
+        /// <returns>HTML документ</returns>
+        protected virtual async Task<HtmlDocument> LoadHtmlDocumentAsync(string url)
+        {
+            var web = new HtmlWeb();
+            return await web.LoadFromWebAsync(url);
+        }
+
+        /// <summary>
+        /// Получает URL следующей страницы на основе правил пагинации
+        /// </summary>
+        /// <param name="urlConfig">Конфигурация URL</param>
+        /// <param name="currentPageNumber">Номер текущей страницы</param>
+        /// <returns>URL следующей страницы или null, если пагинация не требуется</returns>
+        protected virtual string? GetNextPageUrl(ShopUrlConfig urlConfig, int currentPageNumber)
+        {
+            if (urlConfig.PaginationRules == null || urlConfig.PaginationRules.Length == 0)
+            {
+                return null; // Пагинация не настроена
+            }
+
+            // Простая реализация для URL-паттернов
+            // В будущем можно расширить для поддержки API запросов и скроллинга
+            var rule = urlConfig.PaginationRules.FirstOrDefault();
+            if (string.IsNullOrEmpty(rule))
+            {
+                return null;
+            }
+
+            // Заменяем плейсхолдеры в правиле пагинации
+            var nextPageNumber = currentPageNumber + 1;
+            return rule.Replace("{page}", nextPageNumber.ToString())
+                      .Replace("{baseUrl}", urlConfig.BaseUrl);
+        }
+
+        /// <summary>
+        /// Определяет, нужно ли продолжать пагинацию
+        /// </summary>
+        /// <param name="urlConfig">Конфигурация URL</param>
+        /// <param name="pageNumber">Номер текущей страницы</param>
+        /// <returns>True, если нужно продолжать пагинацию</returns>
+        protected virtual bool ShouldContinuePagination(ShopUrlConfig urlConfig, int pageNumber)
+        {
+            // Базовая логика - можно переопределить в наследниках
+            // Например, ограничить максимальное количество страниц
+            return pageNumber <= 100; // Ограничение для безопасности
+        }
+
+        #endregion
+    }
+
+    /// <summary>
+    /// Конфигурация URL магазина с правилами пагинации
+    /// </summary>
+    public class ShopUrlConfig
+    {
+        /// <summary>
+        /// Базовый URL для парсинга
+        /// </summary>
+        public string BaseUrl { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Правила пагинации для данного URL
+        /// Пустой массив означает отсутствие пагинации
+        /// Примеры правил:
+        /// - "{baseUrl}/page/{page}" - для URL-пагинации
+        /// - "api/products?page={page}" - для API запросов
+        /// - "scroll" - для скроллинга (будет реализовано позже)
+        /// </summary>
+        public string[] PaginationRules { get; set; } = Array.Empty<string>();
+    }
+} 

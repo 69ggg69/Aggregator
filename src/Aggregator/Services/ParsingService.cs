@@ -8,16 +8,10 @@ namespace Aggregator.Services;
 /// Сервис парсинга который координирует работу парсеров и базы данных
 /// Разделяет ответственности: парсер извлекает данные, DatabaseService работает с БД
 /// </summary>
-public class ParsingService
+public class ParsingService(IDatabaseService databaseService, ILogger<ParsingService> logger)
 {
-    private readonly IDatabaseService _databaseService;
-    private readonly ILogger<ParsingService> _logger;
-
-    public ParsingService(IDatabaseService databaseService, ILogger<ParsingService> logger)
-    {
-        _databaseService = databaseService;
-        _logger = logger;
-    }
+    private readonly IDatabaseService _databaseService = databaseService;
+    private readonly ILogger<ParsingService> _logger = logger;
 
     /// <summary>
     /// Выполняет полный цикл парсинга для одного парсера:

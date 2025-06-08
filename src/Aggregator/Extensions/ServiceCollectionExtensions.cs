@@ -80,16 +80,19 @@ namespace Aggregator.Extensions
         /// </summary>
         public static IServiceCollection AddParsers(this IServiceCollection services)
         {
-            // Individual parsers
-            services.AddScoped<AskStudioParser>();
-            services.AddScoped<ZnwrParser>();
+            // Individual parsers (old architecture)
+            // services.AddScoped<AskStudioParser>();
+            // services.AddScoped<ZnwrParser>();
             
-            // Collection of all parsers
-            services.AddScoped<IEnumerable<IParser>>(sp => new List<IParser>
-            {
-                sp.GetRequiredService<AskStudioParser>(),
-                sp.GetRequiredService<ZnwrParser>()
-            });
+            // New shop parsers (new architecture)
+            services.AddScoped<AskStudioShopParser>();
+            
+            // Collection of all parsers (old architecture)
+            // services.AddScoped<IEnumerable<IParser>>(sp => new List<IParser>
+            // {
+            //     sp.GetRequiredService<AskStudioParser>(),
+            //     sp.GetRequiredService<ZnwrParser>()
+            // });
 
             return services;
         }
