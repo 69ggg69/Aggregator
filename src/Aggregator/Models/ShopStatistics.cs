@@ -39,5 +39,5 @@ public class ParsingStatistics
     /// <summary>
     /// Статистика по каждому магазину
     /// </summary>
-    public List<ShopStatistics> ShopStatistics { get; set; } = new();
+    public List<ShopStatistics> ShopStatistics { get; set; } = [];
 } 

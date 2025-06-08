@@ -80,7 +80,7 @@ public class DatabaseInfo
     /// <summary>
     /// Список примененных миграций
     /// </summary>
-    public List<string> AppliedMigrations { get; set; } = new();
+    public List<string> AppliedMigrations { get; set; } = [];
 
     /// <summary>
     /// Общий размер базы данных в байтах

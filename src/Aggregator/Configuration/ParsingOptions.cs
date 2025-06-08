@@ -30,6 +30,6 @@ namespace Aggregator.Configuration
         /// <summary>
         /// Список активных парсеров
         /// </summary>
-        public List<string> EnabledParsers { get; set; } = new() { "AskStudio", "ZNWR" };
+        public List<string> EnabledParsers { get; set; } = ["AskStudio", "ZNWR"];
     }
 }
