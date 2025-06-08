@@ -44,7 +44,9 @@ namespace Aggregator.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Price")
-                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("ProductLink")
                         .HasColumnType("text");
 
                     b.Property<string>("Shop")
