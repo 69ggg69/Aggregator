@@ -37,7 +37,7 @@ namespace Aggregator.ParserServices
     public abstract class BaseParser(
         IHttpClientFactory clientFactory,
         ILogger logger,
-        ImageService imageService) : IParser
+        ImageService imageService)
     {
         #region Fields and Properties
 
@@ -200,26 +200,6 @@ namespace Aggregator.ParserServices
             // Это будет реализовано в конкретных парсерах
             
             await Task.CompletedTask; // Для async совместимости
-        }
-
-        #endregion
-
-        #region Backward Compatibility
-
-        /// <summary>
-        /// Устаревший метод для обратной совместимости
-        /// </summary>
-        [Obsolete("Используйте ParseBasicProductsAsync и ParseDetailedProductAsync")]
-        public virtual async Task<List<Product>> ParseProducts()
-        {
-            // Простая реализация для обратной совместимости
-            var basicProducts = await ParseBasicProductsAsync();
-            
-            // Для обратной совместимости возвращаем только базовую информацию
-            _logger.LogWarning("Используется устаревший метод ParseProducts() в парсере {ShopName}. " +
-                              "Рекомендуется перейти на двухэтапный парсинг.", ShopName);
-            
-            return basicProducts;
         }
 
         #endregion

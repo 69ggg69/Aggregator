@@ -42,4 +42,33 @@ public interface IProductRepository
     /// </summary>
     /// <returns>Количество товаров</returns>
     Task<int> GetTotalProductsCountAsync();
+
+    /// <summary>
+    /// Получает список URL всех товаров магазина (для проверки дубликатов)
+    /// </summary>
+    /// <param name="shopName">Название магазина</param>
+    /// <returns>Список URL товаров</returns>
+    Task<HashSet<string>> GetProductUrlsByShopAsync(string shopName);
+
+    /// <summary>
+    /// Добавляет один товар в базу данных в отдельной транзакции
+    /// </summary>
+    /// <param name="product">Товар для добавления</param>
+    /// <returns>True если товар успешно добавлен</returns>
+    Task<bool> AddProductAsync(Product product);
+
+    /// <summary>
+    /// Получает магазин по названию или создает его, если не существует
+    /// </summary>
+    /// <param name="shopName">Название магазина</param>
+    /// <param name="shopUrl">URL магазина (опционально)</param>
+    /// <returns>Магазин</returns>
+    Task<Shop> EnsureShopExistsAsync(string shopName, string? shopUrl = null);
+
+    /// <summary>
+    /// Получает ID магазина по названию
+    /// </summary>
+    /// <param name="shopName">Название магазина</param>
+    /// <returns>ID магазина или null если не найден</returns>
+    Task<int?> GetShopIdByNameAsync(string shopName);
 } 

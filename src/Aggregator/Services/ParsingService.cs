@@ -28,12 +28,12 @@ public class ParsingService(IDatabaseService databaseService, ILogger<ParsingSer
 
         try
         {
-            // 1. Парсим товары с сайта
-            var parsedProducts = await parser.ParseProducts();
-            _logger.LogInformation("📦 Парсер нашел {count} товаров на сайте {shopName}",
-                parsedProducts.Count, parser.ShopName);
+            // 1. Этап 1: Парсим базовую информацию о товарах с сайта
+            var basicProducts = await parser.ParseBasicProductsAsync();
+            _logger.LogInformation("📦 Парсер нашел {count} товаров (базовая информация) на сайте {shopName}",
+                basicProducts.Count, parser.ShopName);
 
-            if (parsedProducts.Count == 0)
+            if (basicProducts.Count == 0)
             {
                 _logger.LogWarning("⚠️  Парсер не нашел товаров на сайте {shopName}", parser.ShopName);
                 return new ParsingResult
@@ -47,19 +47,34 @@ public class ParsingService(IDatabaseService databaseService, ILogger<ParsingSer
                 };
             }
 
-            // 2. Получаем существующие товары из БД
+            // 2. Этап 2: Парсим детальную информацию для каждого товара
+            var detailedProducts = new List<Product>();
+            for (int i = 0; i < basicProducts.Count; i++)
+            {
+                var product = basicProducts[i];
+                _logger.LogInformation("🔍 Парсинг детальной информации для товара {index}/{total}: {productName}",
+                    i + 1, basicProducts.Count, product.Name);
+                
+                var detailedProduct = await parser.ParseDetailedProductAsync(product);
+                detailedProducts.Add(detailedProduct);
+            }
+
+            _logger.LogInformation("✅ Завершен двухэтапный парсинг {count} товаров для магазина {shopName}",
+                detailedProducts.Count, parser.ShopName);
+
+            // 3. Получаем существующие товары из БД
             var existingProducts = await _databaseService.Products.GetProductsByShopAsync(parser.ShopName);
 
-            // 3. Фильтруем новые товары (избегаем дубликатов по имени)
+            // 4. Фильтруем новые товары (избегаем дубликатов по имени)
             // TODO: В новой архитектуре нужно будет сравнивать по ProductVariants
-            var newProducts = parsedProducts
+            var newProducts = detailedProducts
                 .Where(p => !existingProducts.Any(ep => ep.Name == p.Name))
                 .ToList();
 
             _logger.LogInformation("🆕 Найдено {newCount} новых товаров из {totalCount} для магазина {shopName}",
-                newProducts.Count, parsedProducts.Count, parser.ShopName);
+                newProducts.Count, detailedProducts.Count, parser.ShopName);
 
-            // 4. Сохраняем новые товары в БД
+            // 5. Сохраняем новые товары в БД
             var addedCount = 0;
             if (newProducts.Count > 0)
             {
@@ -75,7 +90,7 @@ public class ParsingService(IDatabaseService databaseService, ILogger<ParsingSer
             return new ParsingResult
             {
                 ShopName = parser.ShopName,
-                ParsedCount = parsedProducts.Count,
+                ParsedCount = detailedProducts.Count,
                 AddedCount = addedCount,
                 StartTime = startTime,
                 EndTime = DateTime.UtcNow,

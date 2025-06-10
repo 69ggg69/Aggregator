@@ -1,3 +1,4 @@
+using Aggregator.Interfaces;
 using Aggregator.Models;
 using HtmlAgilityPack;
 using Microsoft.Extensions.Logging;
@@ -27,7 +28,7 @@ namespace Aggregator.ParserServices
     /// </remarks>
     /// <param name="clientFactory">Фабрика HTTP клиентов</param>
     /// <param name="logger">Логгер</param>
-    public abstract class ShopParser(IHttpClientFactory clientFactory, ILogger logger)
+    public abstract class ShopParser(IHttpClientFactory clientFactory, ILogger logger) : IParser
     {
         #region Fields and Properties
 
@@ -54,6 +55,11 @@ namespace Aggregator.ParserServices
         public abstract string ShopName { get; }
 
         /// <summary>
+        /// URL магазина
+        /// </summary>
+        public abstract string ShopUrl { get; }
+
+        /// <summary>
         /// Массив базовых URL для парсинга с правилами навигации по страницам
         /// Каждый элемент содержит URL и массив правил пагинации
         /// </summary>
@@ -76,7 +82,7 @@ namespace Aggregator.ParserServices
 
         #endregion
 
-        #region Public Methods
+        #region IParser Implementation
 
         /// <summary>
         /// Парсит основную информацию о товарах из всех настроенных URL магазина
@@ -109,9 +115,74 @@ namespace Aggregator.ParserServices
             return allProducts;
         }
 
+        /// <summary>
+        /// Парсит детальную информацию о товаре
+        /// Базовая реализация - заглушка, должна быть переопределена в наследниках
+        /// </summary>
+        /// <param name="product">Товар с базовой информацией</param>
+        /// <returns>Товар с детальной информацией</returns>
+        public virtual async Task<Product> ParseDetailedProductAsync(Product product)
+        {
+            if (string.IsNullOrEmpty(product.ProductUrl))
+            {
+                _logger.LogWarning("У товара {ProductName} отсутствует ссылка для детального парсинга", product.Name);
+                return product;
+            }
+
+            try
+            {
+                _logger.LogDebug("Начинаем детальный парсинг товара {ProductName} из магазина {ShopName}", 
+                    product.Name, ShopName);
+
+                var doc = await LoadHtmlDocumentAsync(product.ProductUrl);
+                
+                // Базовая реализация - парсим детальную информацию
+                await ParseProductDetailsAsync(product, doc);
+                
+                product.ParsingStatus = ParsingStatus.DetailedParsed;
+                product.UpdatedAt = DateTime.UtcNow;
+
+                _logger.LogInformation("Детально спаршен товар {ProductName} из магазина {ShopName}", 
+                    product.Name, ShopName);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Ошибка при детальном парсинге товара {ProductName} из магазина {ShopName}", 
+                    product.Name, ShopName);
+            }
+
+            return product;
+        }
+
         #endregion
 
         #region Protected Methods
+
+        /// <summary>
+        /// Переопределяемый метод для парсинга детальной информации о товаре
+        /// Базовая реализация - заглушка, должна быть переопределена в наследниках
+        /// </summary>
+        /// <param name="product">Товар для обновления</param>
+        /// <param name="doc">HTML документ страницы товара</param>
+        protected virtual async Task ParseProductDetailsAsync(Product product, HtmlDocument doc)
+        {
+            // Базовая реализация - заглушка
+            // Парсим базовое описание из meta тега
+            var descriptionNode = doc.DocumentNode.SelectSingleNode("//meta[@name='description']");
+            if (descriptionNode != null)
+            {
+                var description = descriptionNode.GetAttributeValue("content", "")?.Trim();
+                if (!string.IsNullOrEmpty(description))
+                {
+                    product.Description = description;
+                }
+            }
+
+            _logger.LogDebug("Базовый парсинг детальной информации для товара {ProductName} завершен", product.Name);
+            
+            // Заглушка для async/await
+            await Task.CompletedTask;
+        }
 
         /// <summary>
         /// Парсит товары из одной конфигурации URL с учетом правил пагинации

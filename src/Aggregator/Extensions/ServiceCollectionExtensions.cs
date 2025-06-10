@@ -50,9 +50,12 @@ namespace Aggregator.Extensions
         /// </summary>
         public static IServiceCollection AddApplicationServices(this IServiceCollection services)
         {
-            // Core application services
-            services.AddScoped<ParsingApplicationService>();
-            services.AddScoped<ParserManager>();
+            // New parsing services (двухэтапный парсинг)
+            services.AddScoped<BasicParsingService>();
+            services.AddScoped<DetailedParsingService>();
+            services.AddScoped<ParsingApplicationServiceFactory>();
+            
+            // Old services (временно для совместимости)
             services.AddScoped<ParsingService>();
             
             // Infrastructure services
@@ -80,19 +83,16 @@ namespace Aggregator.Extensions
         /// </summary>
         public static IServiceCollection AddParsers(this IServiceCollection services)
         {
-            // Individual parsers (old architecture)
-            // services.AddScoped<AskStudioParser>();
-            // services.AddScoped<ZnwrParser>();
-            
-            // New shop parsers (new architecture)
+            // Individual parsers
             services.AddScoped<AskStudioShopParser>();
+            // services.AddScoped<ZnwrShopParser>();
             
-            // Collection of all parsers (old architecture)
-            // services.AddScoped<IEnumerable<IParser>>(sp => new List<IParser>
-            // {
-            //     sp.GetRequiredService<AskStudioParser>(),
-            //     sp.GetRequiredService<ZnwrParser>()
-            // });
+            // Collection of all parsers
+            services.AddScoped<IEnumerable<IParser>>(sp => new List<IParser>
+            {
+                sp.GetRequiredService<AskStudioShopParser>(),
+                // sp.GetRequiredService<ZnwrParser>()
+            });
 
             return services;
         }

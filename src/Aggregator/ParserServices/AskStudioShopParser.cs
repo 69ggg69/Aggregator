@@ -9,6 +9,8 @@ namespace Aggregator.ParserServices
     {
         public override string ShopName => "AskStudio";
 
+        public override string ShopUrl => "https://askstudio.ru";
+
         public override ShopUrlConfig[] BaseUrls => new[]
         {
             new ShopUrlConfig

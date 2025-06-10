@@ -41,10 +41,10 @@ namespace Aggregator
                 Console.WriteLine("✅ Приложение Aggregator успешно инициализировано");
                 
                 // ВРЕМЕННО: Тестируем новый ShopParser вместо обычного меню
-                await TestNewShopParserAsync(host, logger);
+                // await TestNewShopParserAsync(host, logger);
                 
                 // Показываем простое меню (временно, пока не добавим API)
-                // await ShowMainMenuAsync(host, logger);
+                await ShowMainMenuAsync(host, logger);
                 
                 logger.LogInformation("👋 Завершение работы приложения");
                 logger.LogInformation("Время остановки: {StopTime}", DateTime.Now);
@@ -114,11 +114,30 @@ namespace Aggregator
             
             try
             {
-                var parsingService = host.Services.GetRequiredService<ParsingApplicationService>();
-                await parsingService.RunParsingAsync();
+                // Получаем Factory и создаем сервис для AskStudio парсера
+                var factory = host.Services.GetRequiredService<ParsingApplicationServiceFactory>();
+                var askStudioParser = host.Services.GetRequiredService<AskStudioShopParser>();
+                
+                var askStudioService = factory.CreateForParser(askStudioParser);
+                
+                logger.LogInformation("🎯 Запуск потокового базового парсинга с сохранением для магазина {ShopName}", askStudioService.ShopName);
+                
+                // Выполняем потоковый базовый парсинг для AskStudio с сохранением
+                var result = await askStudioService.RunStreamingBasicParsingAsync();
                 
                 var duration = DateTime.Now - startTime;
-                logger.LogInformation("✅ Парсинг успешно завершен за {Duration}ms", duration.TotalMilliseconds);
+                
+                if (result.Success)
+                {
+                    logger.LogInformation("✅ Потоковый базовый парсинг успешно завершен за {Duration}ms. " +
+                                        "Найдено {TotalCount}, сохранено {SavedCount}, пропущено {SkippedCount}, ошибок {FailedCount}", 
+                        duration.TotalMilliseconds, result.TotalParsedCount, result.SavedCount, result.SkippedCount, result.FailedCount);
+                }
+                else
+                {
+                    logger.LogError("❌ Потоковый базовый парсинг неуспешен: {Error}", result.Error);
+                    Console.WriteLine($"❌ Ошибка парсинга: {result.Error}");
+                }
             }
             catch (Exception ex)
             {
@@ -203,24 +222,22 @@ namespace Aggregator
             
             try
             {
-                var parsingService = host.Services.GetRequiredService<ParsingApplicationService>();
-                var statistics = await parsingService.GetStatisticsAsync();
+                // Получаем Factory и создаем сервис для AskStudio парсера
+                var factory = host.Services.GetRequiredService<ParsingApplicationServiceFactory>();
+                var askStudioParser = host.Services.GetRequiredService<AskStudioShopParser>();
+                
+                var askStudioService = factory.CreateForParser(askStudioParser);
+                
+                // Получаем статистику для AskStudio
+                var askStudioStats = await askStudioService.GetShopStatisticsAsync();
 
-                Console.WriteLine($"\n📊 Детальная статистика:");
-                Console.WriteLine($"   Всего товаров в БД: {statistics.TotalProducts}");
-                Console.WriteLine($"   Последний парсинг: {(statistics.LastParseDate?.ToString("dd.MM.yyyy HH:mm") ?? "Не было")}");
+                Console.WriteLine($"\n📊 Статистика для магазина {askStudioStats.ShopName}:");
+                Console.WriteLine($"   Товаров в БД: {askStudioStats.ProductCount}");
+                Console.WriteLine($"   Последнее обновление: {(askStudioStats.LastUpdate != DateTime.MinValue ? askStudioStats.LastUpdate.ToString("dd.MM.yyyy HH:mm") : "Не было")}");
                 
-                if (statistics.ShopStatistics.Count > 0)
-                {
-                    Console.WriteLine("\n📈 Статистика по магазинам:");
-                    foreach (var shopStat in statistics.ShopStatistics)
-                    {
-                        Console.WriteLine($"   {shopStat.ShopName}: {shopStat.ProductCount} товаров (обновлено: {shopStat.LastUpdate:dd.MM.yyyy HH:mm})");
-                    }
-                }
-                
-                logger.LogInformation("📊 Статистика отображена: товаров {TotalProducts}, магазинов {ShopsCount}, последний парсинг {LastParseDate}", 
-                    statistics.TotalProducts, statistics.ShopStatistics.Count, statistics.LastParseDate);
+                // TODO: Позже добавим статистику для всех магазинов
+                logger.LogInformation("📊 Статистика отображена для магазина {ShopName}: товаров {ProductCount}, последнее обновление {LastUpdate}", 
+                    askStudioStats.ShopName, askStudioStats.ProductCount, askStudioStats.LastUpdate);
             }
             catch (Exception ex)
             {
