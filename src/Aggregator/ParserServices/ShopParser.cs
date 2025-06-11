@@ -1,12 +1,12 @@
-using Aggregator.Interfaces;
-using Aggregator.Models;
-using HtmlAgilityPack;
-using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
+using Aggregator.Interfaces;
+using Aggregator.Models;
+using HtmlAgilityPack;
+using Microsoft.Extensions.Logging;
 
 namespace Aggregator.ParserServices
 {
@@ -98,18 +98,18 @@ namespace Aggregator.ParserServices
                 {
                     var productsFromUrl = await ParseProductsFromUrlConfigAsync(urlConfig);
                     allProducts.AddRange(productsFromUrl);
-                    
-                    _logger.LogInformation("Получено {count} товаров с URL: {url} для магазина {shopName}", 
+
+                    _logger.LogInformation("Получено {count} товаров с URL: {url} для магазина {shopName}",
                         productsFromUrl.Count, urlConfig.BaseUrl, ShopName);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Ошибка при парсинге URL: {url} для магазина {shopName}", 
+                    _logger.LogError(ex, "Ошибка при парсинге URL: {url} для магазина {shopName}",
                         urlConfig.BaseUrl, ShopName);
                 }
             }
 
-            _logger.LogInformation("Всего найдено {totalCount} товаров для магазина {shopName}", 
+            _logger.LogInformation("Всего найдено {totalCount} товаров для магазина {shopName}",
                 allProducts.Count, ShopName);
 
             return allProducts;
@@ -131,23 +131,23 @@ namespace Aggregator.ParserServices
 
             try
             {
-                _logger.LogDebug("Начинаем детальный парсинг товара {ProductName} из магазина {ShopName}", 
+                _logger.LogDebug("Начинаем детальный парсинг товара {ProductName} из магазина {ShopName}",
                     product.Name, ShopName);
 
                 var doc = await LoadHtmlDocumentAsync(product.ProductUrl);
-                
+
                 // Базовая реализация - парсим детальную информацию
                 await ParseProductDetailsAsync(product, doc);
-                
+
                 product.ParsingStatus = ParsingStatus.DetailedParsed;
                 product.UpdatedAt = DateTime.UtcNow;
 
-                _logger.LogInformation("Детально спаршен товар {ProductName} из магазина {ShopName}", 
+                _logger.LogInformation("Детально спаршен товар {ProductName} из магазина {ShopName}",
                     product.Name, ShopName);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Ошибка при детальном парсинге товара {ProductName} из магазина {ShopName}", 
+                _logger.LogError(ex, "Ошибка при детальном парсинге товара {ProductName} из магазина {ShopName}",
                     product.Name, ShopName);
             }
 
@@ -179,7 +179,7 @@ namespace Aggregator.ParserServices
             }
 
             _logger.LogDebug("Базовый парсинг детальной информации для товара {ProductName} завершен", product.Name);
-            
+
             // Заглушка для async/await
             await Task.CompletedTask;
         }
@@ -201,10 +201,10 @@ namespace Aggregator.ParserServices
                 {
                     var doc = await LoadHtmlDocumentAsync(currentUrl);
                     var pageProducts = await ParseProductsFromPageAsync(doc);
-                    
+
                     if (pageProducts.Count == 0)
                     {
-                        _logger.LogInformation("На странице {pageNumber} не найдено товаров. Завершение парсинга URL: {url}", 
+                        _logger.LogInformation("На странице {pageNumber} не найдено товаров. Завершение парсинга URL: {url}",
                             pageNumber, currentUrl);
                         break;
                     }
@@ -224,7 +224,7 @@ namespace Aggregator.ParserServices
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Ошибка при парсинге страницы {pageNumber} для URL: {url}", 
+                    _logger.LogError(ex, "Ошибка при парсинге страницы {pageNumber} для URL: {url}",
                         pageNumber, currentUrl);
                 }
             }
@@ -232,6 +232,8 @@ namespace Aggregator.ParserServices
 
             return products;
         }
+
+
 
         /// <summary>
         /// Парсит товары с одной HTML страницы
@@ -272,7 +274,7 @@ namespace Aggregator.ParserServices
                     _logger.LogWarning(ex, "Ошибка при парсинге товара из узла HTML");
                     break;
                 }
-            
+
             }
 
             await Task.CompletedTask; // Для async совместимости
@@ -337,8 +339,26 @@ namespace Aggregator.ParserServices
         /// <returns>HTML документ</returns>
         protected virtual async Task<HtmlDocument> LoadHtmlDocumentAsync(string url)
         {
-            var web = new HtmlWeb();
-            return await web.LoadFromWebAsync(url);
+            var doc = new HtmlDocument();
+
+            if (url.StartsWith("http://") || url.StartsWith("https://"))
+            {
+                var web = new HtmlWeb();
+                doc = await web.LoadFromWebAsync(url);
+            }
+            else if (url.StartsWith("file://"))
+            {
+                var filePath = url.Replace("file://", "");
+                var html = await File.ReadAllTextAsync(filePath);
+                doc.LoadHtml(html);
+            }
+            else
+            {
+                var html = await File.ReadAllTextAsync(url);
+                doc.LoadHtml(html);
+            }
+
+            return doc;
         }
 
         /// <summary>
@@ -404,4 +424,4 @@ namespace Aggregator.ParserServices
         /// </summary>
         public string[] PaginationRules { get; set; } = Array.Empty<string>();
     }
-} 
+}
